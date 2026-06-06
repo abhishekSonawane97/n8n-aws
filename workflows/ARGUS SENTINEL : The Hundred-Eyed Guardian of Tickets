@@ -1,0 +1,962 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are a strict JSON ticket classification engine.\nYou are NOT a chatbot.\nReturn ONLY valid JSON.\nNo explanation, No markdown, No extra text.\n\nTicket Title: {{ $('Filter classification = null1').item.json.subject }}\nTicket Content: {{ $json.plainText }}\n\nClassify the ticket into ONE of the following departments.\nIf multiple match, choose the MOST technically specific category.\nTechnical > Financial > Content > Marketing > CS.\nIf unsure, fallback to TechOps.\n\nTeams & Conditions:\n\n1) \"Design\" : Visual redesign, creative banners, layout redesign, branding changes, \nUI/UX concept,UI alignment, CSS issues, frontend errors, mobile responsiveness, layout, header/footer, JS issues, icon's creation.\n\n2) \"TechOps\" : Booking engine any changes, reservations, booking, reservation desk, guest connect, BE settings, inventory,cancellations, amendments, refund (system-side), rate plans, payment policy,admin panel, DNS, SMTP, payment gateway config, CRM/chatbot integration, tracking codes (GA4/GTM/metapixel, etc), schema, technical troubleshooting. refund via PG account, tax invoice clarification, Commission payout, settlement queries, reconciliation, payments to Simplotel, commission disputes, no-show financial impact, GST changes, bank detail changes, billing corrections, credit notes, Channel Manager, discount, promocode, Offer, LMD/EBD/LOS/MLOS/CTA/CTD, Quote, dashboard access.\n\n3) \"Content Support\" : Website content updates, text/image changes, amenities/offers update, title/description, forms, basic SEO, blog publishing, \"Welcome Call\", \"Website Onboarding\", pre-go-live coordination, sitemap discussion, photographs, Floating WhatsApp, widget, homepage, menu, Room Description.\n\n4) \"Digital Marketing\" : PPC, SEO plan, keyword strategy, monthly SEO strategy, campaign performance.\n\n5) \"Customer Success\" : Onboarding, invoice queries, chargeback, client escalation, Payment Escalation, contract queries, Simplotel Connect, Proposal, Discontinue Service, Approval Required, new hotel, new property.\n\n6) \"Front-End Engineering\" : crowd-strike\n\nOutput format EXACTLY:\n{\n  \"team\": \"<Team>\", // full team name e.g : Content Support\n  \"tag\": \"<short-tag>\",\n  \"fallback\": <true/false>\n}",
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        976,
+        176
+      ],
+      "id": "84a772b1-61f9-4d6c-a786-9754823f1b63",
+      "name": "6th-sense-feed"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1M3fb8fYvczbXwGh3-bWVYDJWW-f0GhmOibJxsdqFyv0",
+          "mode": "list",
+          "cachedResultName": "Zoho-assignment-logs",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1M3fb8fYvczbXwGh3-bWVYDJWW-f0GhmOibJxsdqFyv0/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1M3fb8fYvczbXwGh3-bWVYDJWW-f0GhmOibJxsdqFyv0/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Assigned Team": "={{ $json.team }}",
+            "Ticket Assigned Date": "={{ new Date().toISOString().split(\"T\").join(\" / \") }}",
+            "Ticket Id": "={{ $('Filter classification = null1').item.json.id }}",
+            "Reason Of Assignment": "={{ $json.tag }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Ticket Id",
+              "displayName": "Ticket Id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Ticket Assigned Date",
+              "displayName": "Ticket Assigned Date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Assigned Team",
+              "displayName": "Assigned Team",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Reason Of Assignment",
+              "displayName": "Reason Of Assignment",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Other Comments",
+              "displayName": "Other Comments",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1824,
+        192
+      ],
+      "id": "2f984355-b97b-4ee3-9f01-b9fc82048223",
+      "name": "Append row in sheet1",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "S6N0o4nDNnMLSoYa",
+          "name": "Google Sheets account 4"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const ticketContent = $input.first().json.plainText?.toLowerCase() || \"\";\nconst authorMail = $input.first().json.author?.email?.toLowerCase() || \"\"; // ✅ fixed\nconst go_live_notif = $input.first().json.to?.email?.toLowerCase() || \"\"; // ✅ fixed\nconst ticketId = $input.first().json.id || \"\";\n\nconst businessprofile_noreply = $input.first().json.author.email === \"businessprofile-noreply@google.com\"? true : false;\nconst ads_acc_noreply = $input.first().json.author.email === \"ads-account-noreply@google.com\"? true : false;\nconst drive_share_noreply = $input.first().json.author.email === \"drive-shares-noreply@google.com\"? true : false;\nconst pinterest_recommendations = $input.first().json.author.email === \"pinterest-recommendations@ideas.pinterest.com\"? true : false;\nconst no_reply_zoom = $input.first().json.author.email === \"no-reply@zoom.us\"? true : false;\nconst comments_no_reply = $input.first().json.author.email === \"comments-noreply@docs.google.com\"? true : false;\nconst no_reply_acc_google = $input.first().json.author.email === \"no-reply@accounts.google.com\"? true : false;\nconst hello_ideabrowser = $input.first().json.author.email === \"hello@ideabrowser.com\" ? true : false;\nconst looker_studio_noreply_google = $input.first().json.author.email === \"looker-studio-noreply@google.com\" ? true : false;\nconst notifications_ideabrowser = $input.first().json.author.email === \"notifications@mail.ideabrowser.com\" ? true : false;\nconst payments_noreply_google = $input.first().json.author.email === \"payments-noreply@google.com\" ? true : false;\nconst leif_turboscribe = $input.first().json.author.email === \"leif@turboscribe.ai\" ? true : false;\nconst marketing_engage_canva = $input.first().json.author.email === \"marketing@engage.canva.com\" ? true : false;\nconst recommendations_explore_pinterest = $input.first().json.author.email === \"recommendations@explore.pinterest.com\" ? true : false;\nconst updates_quillbot = $input.first().json.author.email === \"updates@mail.quillbot.com\" ? true : false;\nconst alerts_courses_codingninjas = $input.first().json.author.email === \"alerts@courses.codingninjas.com\" ? true : false;\n\nconst res = {\n  team: \"\",\n  tag: \"\",\n  fallback: false,\n  ticketId: \"\"\n};\n\nif (hello_ideabrowser) {\n  res.team = \"\";\n  res.tag = \"hello_ideabrowser\";\n  res.fallback = false;\n  res.ticketId = ticketId;\n  res.status = \"Closed\";\n}\n\nif (looker_studio_noreply_google) {\n  res.team = \"\";\n  res.tag = \"looker_studio_noreply_google\";\n  res.fallback = false;\n  res.ticketId = ticketId;\n  res.status = \"Closed\";\n}\n\nif (notifications_ideabrowser) {\n  res.team = \"\";\n  res.tag = \"notifications_ideabrowser\";\n  res.fallback = false;\n  res.ticketId = ticketId;\n  res.status = \"Closed\";\n}\n\nif (payments_noreply_google) {\n  res.team = \"\";\n  res.tag = \"payments_noreply_google\";\n  res.fallback = false;\n  res.ticketId = ticketId;\n  res.status = \"Closed\";\n}\n\nif (leif_turboscribe) {\n  res.team = \"\";\n  res.tag = \"leif_turboscribe\";\n  res.fallback = false;\n  res.ticketId = ticketId;\n  res.status = \"Closed\";\n}\n\nif (marketing_engage_canva) {\n  res.team = \"\";\n  res.tag = \"marketing_engage_canva\";\n  res.fallback = false;\n  res.ticketId = ticketId;\n  res.status = \"Closed\";\n}\n\nif (recommendations_explore_pinterest) {\n  res.team = \"\";\n  res.tag = \"recommendations_explore_pinterest\";\n  res.fallback = false;\n  res.ticketId = ticketId;\n  res.status = \"Closed\";\n}\n\nif (updates_quillbot) {\n  res.team = \"\";\n  res.tag = \"updates_quillbot\";\n  res.fallback = false;\n  res.ticketId = ticketId;\n  res.status = \"Closed\";\n}\n\nif (alerts_courses_codingninjas) {\n  res.team = \"\";\n  res.tag = \"alerts_courses_codingninjas\";\n  res.fallback = false;\n  res.ticketId = ticketId;\n  res.status = \"Closed\";\n}\n\nif (no_reply_acc_google) {\n  res.team = \"\";\n  res.tag = \"no_reply_acc_google\";\n  res.fallback = false;\n  res.ticketId = ticketId;\n  res.status = \"Closed\";\n}\n\n\nif (businessprofile_noreply) {\n  res.team = \"\";\n  res.tag = \"businessprofile-noreply\";\n  res.fallback = false;\n  res.ticketId = ticketId;\n  res.status = \"Closed\";\n}\n\n\nif (pinterest_recommendations) {\n  res.team = \"\";\n  res.tag = \"pinterest_recommendations\";\n  res.fallback = false;\n  res.ticketId = ticketId;\n  res.status = \"Closed\";\n}\nif (no_reply_zoom) {\n  res.team = \"\";\n  res.tag = \"no_reply_zoom\";\n  res.fallback = false;\n  res.ticketId = ticketId;\n  res.status = \"Closed\";\n}\nif (comments_no_reply) {\n  res.team = \"\";\n  res.tag = \"no_reply_zoom\";\n  res.fallback = false;\n  res.ticketId = ticketId;\n  res.status = \"Closed\";\n}\nif (drive_share_noreply) {\n  res.team = \"\";\n  res.tag = \"drive_share_noreply\";\n  res.fallback = false;\n  res.ticketId = ticketId;\n  res.status = \"Closed\";\n}\n\nif (ads_acc_noreply) {\n  res.team = \"Digital Marketing\";\n  res.tag = \"ads_acc_noreply\";\n  res.fallback = false;\n  res.ticketId = ticketId;\n}\n\nif (ticketContent?.includes(\"reply to your reviews\")) {\n  res.team = \"TechOps\";\n  res.tag = \"reviews\";\n  res.fallback = false;\n  res.ticketId = ticketId;\n}\n\nif (authorMail == \"payments@simplotel.com\") { // ✅ now both lowercase, will match\n  res.team = \"TechOps\";\n  res.tag = \"blackops clearance\";\n  res.fallback = false;\n  res.ticketId = ticketId;\n}\n\nif (authorMail == \"support@simplotel.com\") { // simplotel connect ticket - raised by support@simplotel.com\n  res.team = \"Customer Success\";\n  res.tag = \"simplotel connect\";\n  res.fallback = false;\n  res.ticketId = ticketId;\n}\n\nif (go_live_notif == \"go-live@simplotel.com\") { // simplotel connect ticket - raised by support@simplotel.com\n  res.team = \"Customer Success\";\n  res.tag = \"go_live_notif\";\n  res.fallback = false;\n  res.ticketId = ticketId;\n}\n\n\nreturn [{ json: res }]; // ✅ proper n8n return format"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        368,
+        368
+      ],
+      "id": "6c88e911-a0a2-43da-a25c-821bda940dd7",
+      "name": "bypass-ai1"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "812e2d0b-0f59-44d2-8d5b-99f23c24015c",
+              "leftValue": "={{ $json.plainText }}",
+              "rightValue": "Reply to your reviews",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            },
+            {
+              "id": "645f50d0-d11f-42ca-abe3-8a4d9c15a733",
+              "leftValue": "={{ $('Filter classification = null1').item.json.subject }}",
+              "rightValue": "Blackops Clearance",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            },
+            {
+              "id": "21ccf040-00b9-4941-9fac-faeb54971ff7",
+              "leftValue": "={{ $json.author.email }}",
+              "rightValue": "businessprofile-noreply@google.com",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "5bd46c17-1e72-4de1-9d9a-33ef8f152513",
+              "leftValue": "={{ $json.author.email }}",
+              "rightValue": "ads-account-noreply@google.com",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            },
+            {
+              "id": "6215b594-66d3-4d34-a510-52d0d7b4876a",
+              "leftValue": "={{ $json.author.email }}",
+              "rightValue": "drive-shares-noreply@google.com",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            },
+            {
+              "id": "d84787e3-5775-4e3b-84b5-55f32c2798a2",
+              "leftValue": "={{ $('Filter classification = null1').item.json.subject }}",
+              "rightValue": "Simplotel Connect",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            },
+            {
+              "id": "1ae41e2c-fae7-4781-b64b-be77f3076426",
+              "leftValue": "={{ $json.author.email }}",
+              "rightValue": "pinterest-recommendations@ideas.pinterest.com",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            },
+            {
+              "id": "df8a73a3-b07b-41aa-bfd4-18d68dbfcd18",
+              "leftValue": "={{ $json.author.email }}",
+              "rightValue": "comments-noreply@docs.google.com",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            },
+            {
+              "id": "ee449351-711b-4fb8-89f2-e6612c4e6416",
+              "leftValue": "={{ $json.author.email }}",
+              "rightValue": "={{\"no-reply@zoom.us\" || \"no-reply@accounts.google.com\" || \"hello@ideabrowser.com\" || \"looker-studio-noreply@google.com\" || \"notifications@mail.ideabrowser.com\" || \"payments-noreply@google.com\" || \"leif@turboscribe.ai\" || \"marketing@engage.canva.com\" || \"recommendations@explore.pinterest.com\" ||\"updates@mail.quillbot.com\" || \"alerts@courses.codingninjas.com\" }}",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            },
+            {
+              "id": "d473c116-e511-4ced-882b-8559e5868ed1",
+              "leftValue": "={{ $json.to }}",
+              "rightValue": "go-live@simplotel.com",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        368,
+        560
+      ],
+      "id": "e0c7c9dc-48e6-4d83-a335-d0ae53d07ad7",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "url": "https://desk.zoho.com/api/v1/tickets/search",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "oAuth2Api",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "limit",
+              "value": "100"
+            },
+            {
+              "name": "sortBy",
+              "value": "-createdTime"
+            }
+          ]
+        },
+        "options": {
+          "pagination": {
+            "pagination": {
+              "parameters": {
+                "parameters": [
+                  {
+                    "name": "from",
+                    "value": "={{ $pageCount * 100 }}"
+                  }
+                ]
+              },
+              "paginationCompleteWhen": "other",
+              "completeExpression": "={{ $response.body.data.length === 0 || $response.body.data.length < 100 || $pageCount >= 2 }}"
+            }
+          }
+        }
+      },
+      "id": "be8cd6ed-ea6b-43d3-8e01-3a23d37e2869",
+      "name": "Fetch All Tickets1",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        1824,
+        1168
+      ],
+      "typeVersion": 4.2,
+      "credentials": {
+        "oAuth2Api": {
+          "id": "ZlUvjFeCVIexNhHC",
+          "name": "Unnamed credential 3"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        368,
+        704
+      ],
+      "id": "e3150dc7-3e01-4da0-a480-e90ff733c3d5",
+      "name": "Loop Over Items"
+    },
+    {
+      "parameters": {
+        "amount": 1
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1824,
+        944
+      ],
+      "id": "4feeca6a-9eee-4d61-8cce-d8bed39f77bf",
+      "name": "Wait1",
+      "webhookId": "b8536705-f730-4010-a632-d4a33644da3b"
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "data",
+        "options": {}
+      },
+      "id": "a6e8530b-0c89-4925-ab51-630efcb18ebe",
+      "name": "Split Tickets1",
+      "type": "n8n-nodes-base.splitOut",
+      "position": [
+        1472,
+        1168
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "url": "=https://desk.zoho.com/api/v1/tickets/{{ $('Filter classification = null1').item.json.id }}/threads/{{ $json.data[0].id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "oAuth2Api",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "include",
+              "value": "plainText"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "57adf68c-c9ec-4860-8318-63aa40c6366f",
+      "name": "Get first thread1",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        368,
+        944
+      ],
+      "typeVersion": 4.2,
+      "credentials": {
+        "oAuth2Api": {
+          "id": "ZlUvjFeCVIexNhHC",
+          "name": "Unnamed credential 3"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "url": "=https://desk.zoho.com/api/v1/tickets/{{ $json.id }}/threads",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "oAuth2Api",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "sortBy",
+              "value": "sendDateTime"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {}
+          ]
+        },
+        "options": {}
+      },
+      "id": "9dad991e-6c39-4411-853b-c2e8ce740046",
+      "name": "Get threads1",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        368,
+        1152
+      ],
+      "typeVersion": 4.2,
+      "credentials": {
+        "oAuth2Api": {
+          "id": "ZlUvjFeCVIexNhHC",
+          "name": "Unnamed credential 3"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get current time minus 18 hours (in milliseconds)\nconst eighteenHoursAgo = new Date().getTime() - (18 * 60 * 60 * 1000);\n\n// Filter tickets directly (each item is already one ticket)// Filter \nconst filteredItems = $input.all().filter(item => {\n  const ticket = item.json;\n  const createdTime = new Date(ticket.createdTime).getTime();\n\n  return (\n    ticket.status !== \"Closed\" &&\n    createdTime > eighteenHoursAgo &&\n    ticket.assignee === null &&\n    ticket.teamId === null\n  );\n});\nreturn filteredItems.reverse();\n"
+      },
+      "id": "6d0b4746-26de-4d40-87c0-5255fd0166fd",
+      "name": "Filter classification = null1",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        736,
+        1168
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "1c0e7710-1d31-44c2-bd98-27a54ecd14e8",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "Closed",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        368,
+        192
+      ],
+      "id": "1676fa82-c4b2-45df-8380-b1e5ff370f6f",
+      "name": "If3"
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "=https://desk.zoho.com/api/v1/tickets/{{ $('Filter classification = null1').item.json.id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "oAuth2Api",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "status",
+              "value": "={{ $json.status }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "e8c2418c-277d-4aad-b335-6276e7699fe7",
+      "name": "Update Ticket3",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        640,
+        176
+      ],
+      "typeVersion": 4.2,
+      "credentials": {
+        "oAuth2Api": {
+          "id": "ZlUvjFeCVIexNhHC",
+          "name": "Unnamed credential 3"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1M3fb8fYvczbXwGh3-bWVYDJWW-f0GhmOibJxsdqFyv0",
+          "mode": "list",
+          "cachedResultName": "Zoho-assignment-logs",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1M3fb8fYvczbXwGh3-bWVYDJWW-f0GhmOibJxsdqFyv0/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1M3fb8fYvczbXwGh3-bWVYDJWW-f0GhmOibJxsdqFyv0/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Ticket Id": "={{ $json.id || $('Filter classification = null1').item.json.id }}",
+            "Assigned Team": "None = Closed",
+            "Reason Of Assignment": "businessprofile-noreply",
+            "Ticket Assigned Date": "={{ new Date().toISOString().split(\"T\").join(\" / \") }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Ticket Id",
+              "displayName": "Ticket Id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Ticket Assigned Date",
+              "displayName": "Ticket Assigned Date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Assigned Team",
+              "displayName": "Assigned Team",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Reason Of Assignment",
+              "displayName": "Reason Of Assignment",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Other Comments",
+              "displayName": "Other Comments",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1376,
+        192
+      ],
+      "id": "c1e371b8-01a3-4c0e-be96-032742d960d2",
+      "name": "Append row in sheet3",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "S6N0o4nDNnMLSoYa",
+          "name": "Google Sheets account 4"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst finalPayload = {\n      team: $input.first().json['Assigned Team'],\n      teamId: $('ticket assignment payload1').first().json.teamId,\n      tag:  $input.first().json['Reason Of Assignment'] || \"\" // ✅ Use extracted tag\n    }\n\n\nreturn finalPayload;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1824,
+        432
+      ],
+      "id": "2242bab8-4cb6-4b5b-84dc-725e9f8d0c53",
+      "name": "Code in JavaScript1"
+    },
+    {
+      "parameters": {
+        "content": "# “Argus Sentinel is our automated guardian system. It watches every incoming ticket, classifies with precision, assigns without bias, and operates continuously with internal AI security controls.”\n\n# Argus is awake. 👁",
+        "height": 320,
+        "width": 912,
+        "color": 7
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        752,
+        608
+      ],
+      "typeVersion": 1,
+      "id": "05fcaa15-775e-4569-8640-966276f6666d",
+      "name": "Sticky Note2"
+    },
+    {
+      "parameters": {
+        "model": "gemma3:4b",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        976,
+        336
+      ],
+      "id": "500fa8d3-c1a5-4059-a51c-92d78943f007",
+      "name": "6th-sense1",
+      "credentials": {
+        "ollamaApi": {
+          "id": "2MUjs1ZwxwjDuUv9",
+          "name": "Ollama account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "#   ARGUS SENTINEL \n## The Hundred-Eyed Guardian of Tickets",
+        "height": 132,
+        "width": 464,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        928,
+        -32
+      ],
+      "typeVersion": 1,
+      "id": "1df8bd2a-fadd-4195-a4aa-71fccaebc497",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "=https://desk.zoho.com/api/v1/tickets/{{ $('Filter classification = null1').item.json.id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "oAuth2Api",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "teamId",
+              "value": "={{ $json.teamId }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "72482c7e-6703-4e2a-82d4-4d6e83b0bfcb",
+      "name": "Update Ticket1",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        1824,
+        704
+      ],
+      "typeVersion": 4.2,
+      "credentials": {
+        "oAuth2Api": {
+          "id": "ZlUvjFeCVIexNhHC",
+          "name": "Unnamed credential 3"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 30
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        1088,
+        1168
+      ],
+      "id": "888a5b79-d834-489a-a2c9-f69664d178b9",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "jsCode": "// --- TEAM NAME → TEAM ID MAP ---\nconst TEAM_MAP = {\n  \"Content Support\": \"293552000015408116\",\n  \"TechOps\": \"293552000015408132\",\n  \"Digital Marketing\": \"293552000052928033\",\n  \"Design\": \"293552000056750070\",\n  \"Customer Success\": \"293552000071837649\",\n  \"Content Specialist\": \"293552000153825051\",\n  \"Front-End Engineering\": \"293552000154462001\",\n  \"Simplotel Payments\": \"293552000251043635\",\n  \"Simplotel Finance\": \"293552000251043700\",\n  \"Simplotel Analytics\": \"293552000251043758\",\n  \"Simplotel Human Resources\": \"293552000251043818\",\n  \"Test\": \"293552000189972008\"\n};\n\nfunction sanitizeAndExtractTeam(rawText) {\n  if (!rawText || typeof rawText !== \"string\") return null;\n\n  // Remove markdown code blocks\n  let cleaned = rawText\n    .replace(/```json/gi, \"\")\n    .replace(/```/g, \"\")\n    .trim();\n\n  // Try extracting JSON object portion\n  const jsonMatch = cleaned.match(/\\{[\\s\\S]*\\}/);\n  if (jsonMatch) {\n    try {\n      const parsed = JSON.parse(jsonMatch[0]);\n      if (parsed.team) return parsed.team;\n    } catch (e) {\n      // continue to fallback\n    }\n  }\n\n  // Fallback regex extraction\n  const regexMatch = cleaned.match(/team[\"']?\\s*[:=]\\s*[\"']?([^,\"\\n}]+)/i);\n  if (regexMatch) {\n    return regexMatch[1].trim();\n  }\n\n  return null;\n}\n\n// ✅ NEW FUNCTION - Same logic as team extraction\nfunction sanitizeAndExtractTag(rawText) {\n  if (!rawText || typeof rawText !== \"string\") return null;\n\n  // Remove markdown code blocks\n  let cleaned = rawText\n    .replace(/```json/gi, \"\")\n    .replace(/```/g, \"\")\n    .trim();\n\n  // Try extracting JSON object portion\n  const jsonMatch = cleaned.match(/\\{[\\s\\S]*\\}/);\n  if (jsonMatch) {\n    try {\n      const parsed = JSON.parse(jsonMatch[0]);\n      if (parsed.tag) return parsed.tag;\n    } catch (e) {\n      // continue to fallback\n    }\n  }\n\n  // Fallback regex extraction\n  const regexMatch = cleaned.match(/tag[\"']?\\s*[:=]\\s*[\"']?([^,\"\\n}]+)/i);\n  if (regexMatch) {\n    return regexMatch[1].trim();\n  }\n\n  return null;\n}\n\nconst output = [];\n\nfor (const item of $input.all()) {\n  const raw = item.json.text;\n\n  const extractedTeam = sanitizeAndExtractTeam(raw);\n  const extractedTag = sanitizeAndExtractTag(raw); // ✅ Extract tag using same logic\n\n  const normalizedTeam = extractedTeam && TEAM_MAP[extractedTeam]\n    ? extractedTeam\n    : $input.first().json.team;\n\n  const teamId = normalizedTeam ? TEAM_MAP[normalizedTeam] : null;\n\n  output.push({\n    json: {\n      team: normalizedTeam,\n      teamId: teamId,\n      tag: extractedTag || \"\" // ✅ Use extracted tag\n    }\n  });\n}\n\nreturn output;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1568,
+        192
+      ],
+      "id": "59ba8f3e-ef29-490f-a418-6666d2c45ebf",
+      "name": "ticket assignment payload1"
+    }
+  ],
+  "connections": {
+    "6th-sense-feed": {
+      "main": [
+        [
+          {
+            "node": "ticket assignment payload1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append row in sheet1": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "bypass-ai1": {
+      "main": [
+        [
+          {
+            "node": "If3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "bypass-ai1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "6th-sense-feed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch All Tickets1": {
+      "main": [
+        [
+          {
+            "node": "Split Tickets1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [],
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait1": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Tickets1": {
+      "main": [
+        [
+          {
+            "node": "Filter classification = null1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get first thread1": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get threads1": {
+      "main": [
+        [
+          {
+            "node": "Get first thread1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter classification = null1": {
+      "main": [
+        [
+          {
+            "node": "Get threads1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If3": {
+      "main": [
+        [
+          {
+            "node": "Update Ticket3",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "ticket assignment payload1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Ticket3": {
+      "main": [
+        [
+          {
+            "node": "Append row in sheet3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append row in sheet3": {
+      "main": [
+        [
+          {
+            "node": "Wait1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript1": {
+      "main": [
+        [
+          {
+            "node": "Update Ticket1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "6th-sense1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "6th-sense-feed",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Ticket1": {
+      "main": [
+        [
+          {
+            "node": "Wait1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Fetch All Tickets1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ticket assignment payload1": {
+      "main": [
+        [
+          {
+            "node": "Append row in sheet1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {
+    "Schedule Trigger": [
+      {
+        "timestamp": "2026-03-24T06:00:55.012+01:00",
+        "Readable date": "March 24th 2026, 6:00:55 am",
+        "Readable time": "6:00:55 am",
+        "Day of week": "Tuesday",
+        "Year": "2026",
+        "Month": "March",
+        "Day of month": "24",
+        "Hour": "06",
+        "Minute": "00",
+        "Second": "55",
+        "Timezone": "Europe/Berlin (UTC+01:00)"
+      }
+    ]
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "bd6871a4a2fc266d0b692ce5c61316479a1bd2c1f9ba6625c50ae6055bd706d5"
+  }
+}

@@ -1,0 +1,236 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "months",
+              "triggerAtHour": 10
+            }
+          ]
+        }
+      },
+      "id": "2d8c5363-6e54-4c47-ad04-d1c79060b2b4",
+      "name": "Schedule Daily Check",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "position": [
+        -256,
+        -64
+      ],
+      "typeVersion": 1.2,
+      "retryOnFail": true
+    },
+    {
+      "parameters": {
+        "managerCustomerId": "6906300095",
+        "clientCustomerId": "7284363002",
+        "additionalOptions": {
+          "dateRange": "LAST_30_DAYS",
+          "campaignStatus": "ENABLED"
+        },
+        "requestOptions": {}
+      },
+      "id": "66f95057-0cb7-4608-815a-6bb4097523ec",
+      "name": "Fetch Google Ads Data1",
+      "type": "n8n-nodes-base.googleAds",
+      "position": [
+        -64,
+        -64
+      ],
+      "typeVersion": 1,
+      "credentials": {
+        "googleAdsOAuth2Api": {
+          "id": "wmI7EffMphhstRKF",
+          "name": "Google Ads account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Normalize each campaign item the way your downstream expects\n// Input items are Google Ads response items\nconst out = [];\nfor (const item of $input.all()) {\n  const d = item.json;\n  // Some fields might be strings, numbers or undefined; normalize safely\n  let name = d.name || d.campaignName || \"N/A\";\n  let prop = name;\n  let category = \"\";\n  if (name.includes(\"-\")) {\n    const parts = name.split(\"-\");\n    prop = parts[0].trim();\n    category = parts.slice(1).join(\"-\").trim();\n  }\n\n  out.push({\n    json: {\n      \"Total Spent\": d.costMicros ? (parseFloat(d.costMicros) / 1e6 * 1).toFixed(2) * 1 : (d.cost ? Number(d.cost) : 0),\n      \"Clicks\": Number(d.interactions || d.clicks || 0),\n      \"Impressions\": Number(d.impressions || 0),\n      \"CTR\": d.ctr ? (parseFloat(d.ctr) * 100).toFixed(2) + \" %\" : (d.ctrString ? d.ctrString : \"0.00 %\"),\n      \"Conversions\": Number(d.conversions || 0),\n      \"Average Cost\": d.averageCost ? Number(d.averageCost).toFixed(2) : (d.avgCost ? Number(d.avgCost).toFixed(2) : 0),\n      \"Name\": name,\n      \"Prop\": prop,\n      \"Category\": category\n    }\n  });\n}\nreturn out;\n"
+      },
+      "id": "8508dc80-122e-4c19-9db6-303ce2670692",
+      "name": "Normalize Campaigns",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        144,
+        -64
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1kI_D1oyjoY1ll_u93zDPAkR9czJ6rGYh9ckc3b7OeyY",
+          "mode": "list",
+          "cachedResultName": "PPC Master Sheet",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1kI_D1oyjoY1ll_u93zDPAkR9czJ6rGYh9ckc3b7OeyY/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 21610853,
+          "mode": "list",
+          "cachedResultName": "Monthly Data",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1kI_D1oyjoY1ll_u93zDPAkR9czJ6rGYh9ckc3b7OeyY/edit#gid=21610853"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Month": "={{`${new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]} to ${new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]}`}}\n",
+            "Name / Prop": "={{ $json.Name }}",
+            "Total-spent": "={{ $json[\"Total Spent\"] }}",
+            " Clicks": "={{ $json.Clicks }}",
+            "Impressions": "={{ $json.Impressions }}",
+            "CTR": "={{ $json.CTR }}",
+            "Conversions": "={{ $json.Conversions }}",
+            "Average Cost": "={{ $json[\"Average Cost\"] }}",
+            "Timestamp": "={{`${new Date(Date.now()).toISOString().split('T')[1]}`}}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Month",
+              "displayName": "Month",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Name / Prop",
+              "displayName": "Name / Prop",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Total-spent",
+              "displayName": "Total-spent",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": " Clicks",
+              "displayName": " Clicks",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Impressions",
+              "displayName": "Impressions",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "CTR",
+              "displayName": "CTR",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Conversions",
+              "displayName": "Conversions",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Average Cost",
+              "displayName": "Average Cost",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Timestamp",
+              "displayName": "Timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        352,
+        -64
+      ],
+      "id": "c2801b54-c916-4bc4-bb1d-ba935a56cc93",
+      "name": "Append row in sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "juGeo8ztVVbbv5nu",
+          "name": "Google Sheets account 2"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Schedule Daily Check": {
+      "main": [
+        [
+          {
+            "node": "Fetch Google Ads Data1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Google Ads Data1": {
+      "main": [
+        [
+          {
+            "node": "Normalize Campaigns",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Campaigns": {
+      "main": [
+        [
+          {
+            "node": "Append row in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "instanceId": "511f90fdcd1ec718ee2a458cf357c73db26dac3e4f67dfdb8e5ab0eab2a25baa"
+  }
+}

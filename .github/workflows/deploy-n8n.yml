@@ -1,0 +1,35 @@
+name: Deploy n8n Infrastructure to AWS
+
+# Ported from bitbucket-pipelines.yml. Deploys the CloudFormation stack on push to main.
+# Auth: AWS access keys stored as GitHub repo secrets (AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY).
+# Hardening (later): replace the keys with a GitHub -> AWS OIDC role and use `role-to-assume`
+# + `permissions: id-token: write`, mirroring the old Bitbucket OIDC setup.
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy n8n to AWS
+    runs-on: ubuntu-latest
+    env:
+      AWS_REGION: ap-south-2
+      # Optional: set repo secret KEY_NAME to an EC2 key pair name to enable SSH with your PEM key.
+      KEY_NAME: ${{ secrets.KEY_NAME }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-south-2
+
+      - name: Deploy CloudFormation stack
+        run: |
+          chmod +x ./cf-n8n.sh
+          ./cf-n8n.sh deploy

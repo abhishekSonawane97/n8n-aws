@@ -1,0 +1,1470 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "formTitle": "Start Website Qc By Entering Url",
+        "formDescription": "Please Enter Hotel and Engineer Name Before Starting Qc",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Please Enter Website Url",
+              "placeholder": "www.example.com/",
+              "defaultValue": "https://www.diamondparks.com/",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "What Is Your Name ?",
+              "placeholder": "Please Enter Your Name",
+              "defaultValue": "Singham",
+              "requiredField": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.2,
+      "position": [
+        320,
+        160
+      ],
+      "id": "cef0e6c1-c762-4daf-80d6-cc3a2c2f5a91",
+      "name": "submit-website-url",
+      "webhookId": "1d6e61d2-f2f6-421f-97d2-6e232ebcdad2"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json['Please Enter Website Url'] + \"sitemap.html\" }}",
+        "options": {}
+      },
+      "id": "c8442f26-a978-470a-ad8a-cafca4d474c3",
+      "name": "Get sitemap",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        0,
+        176
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const results = [];\nconst baseUrl = $('submit-website-url').first().json['Please Enter Website Url']\n\nfor (const item of $input.all()) {\n\n  const html = item.json.data;\n\n  const regex = /<h2>\\s*<a[^>]*href=\"([^\"]+)\"/g;\n  let match;\n\n  while ((match = regex.exec(html)) !== null) {\n\n    let path = match[1];\n\n    // remove leading \"./\"\n    path = path.replace(/^\\.\\//, '');\n\n    // remove extra slash from base if needed\n    const formattedBase = baseUrl.replace(/\\/$/, '');\n\n    results.push({\n      json: {\n        url: formattedBase + '/' + path,\n        engg_name : $('submit-website-url').first().json['What Is Your Name ?']\n      }\n    });\n\n  }\n}\n\nreturn results;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        176,
+        16
+      ],
+      "id": "a97a4861-53f0-44c2-b6e3-884fec9a2579",
+      "name": "get-homepage-url"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -32,
+        480
+      ],
+      "id": "af9e2829-72ed-4085-8910-4df115be91e5",
+      "name": "Loop Over Items"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.url }}",
+        "options": {}
+      },
+      "id": "4889f315-b969-4fb9-96d3-47238cde27f6",
+      "name": "Get page data Desktop",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        384,
+        496
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.simpWidgetCSSFiles[0] }}",
+        "options": {}
+      },
+      "id": "37f5f0dc-b348-4909-b829-d3d9d3d18f9d",
+      "name": "get widget.min css-d",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        400,
+        624
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// CSS QC Validator for N8N - Minified CSS Support\n// Input: Array of objects with \"data\" field containing minified CSS\n// Output: Single array with all rules (passed + failed mixed in order)\n// Features: Full validation, occurrence tracking, exact CSS block extraction\n\nconst pageUrl = $('get-wid-min-css-url-d').first().json.pageUrl;\n\nclass CSSQCValidator {\n  constructor(cssContent, protectedVariables = []) {\n    this.cssContent = cssContent;\n    this.protectedVariables = protectedVariables;\n    this.ruleResults = [];\n  }\n\n  validate() {\n    this.checkDuplicateSelectors();\n    this.checkDuplicateProperties();\n    this.checkProtectedVariableOverrides();\n    this.checkEmptyVariables();\n    this.checkDeprecatedCSSUsage();\n    this.checkUnnecessaryImportant();\n    this.checkEmptyRulesets();\n    this.checkCommentedCode();\n\n    const passedRules = this.ruleResults.filter(r => r.status === 'Passed');\n    const failedRules = this.ruleResults.filter(r => r.status === 'Failed');\n\n    const totalIssues = failedRules.reduce((sum, rule) => {\n      return sum + rule.issues.length;\n    }, 0);\n\n    return {\n      isValid: failedRules.length === 0,\n      totalIssues: totalIssues,\n      totalRulesChecked: this.ruleResults.length,\n      passedRulesCount: passedRules.length,\n      failedRulesCount: failedRules.length,\n      rules: this.ruleResults\n    };\n  }\n\n  checkDuplicateSelectors() {\n    const selectors = this.extractSelectors();\n    const selectorMap = new Map();\n    const issues = [];\n\n    selectors.forEach(({ selector, cssBlock }) => {\n      const normalized = this.normalizeSelector(selector);\n      if (selectorMap.has(normalized)) {\n        const existingBlock = selectorMap.get(normalized);\n        issues.push({\n          selector: normalized,\n          message: `Duplicate selector \"${normalized}\" found`,\n          firstOccurrence: existingBlock,\n          secondOccurrence: cssBlock\n        });\n      } else {\n        selectorMap.set(normalized, cssBlock);\n      }\n    });\n\n    this.ruleResults.push({\n      ruleName: 'No Duplicate CSS Selectors',\n      status: issues.length === 0 ? 'Passed' : 'Failed',\n      issues: issues.length === 0\n        ? [{ message: 'No issues found under this rule', status: 'Passed' }]\n        : issues\n    });\n  }\n\n  checkDuplicateProperties() {\n    const ruleBlocks = this.extractRuleBlocks();\n    const issues = [];\n\n    ruleBlocks.forEach(({ selector, cssBlock, properties }) => {\n      const propertyMap = new Map();\n\n      properties.forEach(({ prop, value }) => {\n        const normalized = prop.trim().toLowerCase();\n        if (propertyMap.has(normalized)) {\n          issues.push({\n            selector: selector,\n            property: normalized,\n            message: `Duplicate property \"${normalized}\" in selector \"${selector}\"`,\n            cssBlock: cssBlock\n          });\n        } else {\n          propertyMap.set(normalized, value);\n        }\n      });\n    });\n\n    this.ruleResults.push({\n      ruleName: 'No Duplicate Properties Within Same Selector',\n      status: issues.length === 0 ? 'Passed' : 'Failed',\n      issues: issues.length === 0\n        ? [{ message: 'No issues found under this rule', status: 'Passed' }]\n        : issues\n    });\n  }\n\n  checkProtectedVariableOverrides() {\n    const definitionPattern = /--([\\w-]+)\\s*:\\s*([^;{}]+)/g;\n    const protectedSet = new Set(this.protectedVariables.map(v => v.replace('--', '')));\n    const issues = [];\n\n    let match;\n    while ((match = definitionPattern.exec(this.cssContent)) !== null) {\n      const varName = match[1];\n      if (protectedSet.has(varName)) {\n        const cssBlock = this.extractCSSBlockAroundPosition(match.index);\n        issues.push({\n          variable: `--${varName}`,\n          message: `Protected variable \"--${varName}\" is being redefined`,\n          cssBlock: cssBlock\n        });\n      }\n    }\n\n    this.ruleResults.push({\n      ruleName: 'Design Setting Variables Must Not Be Overridden',\n      status: issues.length === 0 ? 'Passed' : 'Failed',\n      issues: issues.length === 0\n        ? [{ message: 'No issues found under this rule', status: 'Passed' }]\n        : issues\n    });\n  }\n\n  checkEmptyVariables() {\n    const varPattern = /--([\\w-]+)\\s*:\\s*([^;{}]*?)[;{}]/g;\n    const issues = [];\n\n    let match;\n    while ((match = varPattern.exec(this.cssContent)) !== null) {\n      const varName = match[1];\n      const varValue = match[2].trim();\n\n      if (varValue === '' || varValue === '\"\"' || varValue === \"''\") {\n        const cssBlock = this.extractCSSBlockAroundPosition(match.index);\n        issues.push({\n          variable: `--${varName}`,\n          message: `Variable \"--${varName}\" has an empty value`,\n          cssBlock: cssBlock\n        });\n      }\n    }\n\n    this.ruleResults.push({\n      ruleName: 'No Variables With Empty Values',\n      status: issues.length === 0 ? 'Passed' : 'Failed',\n      issues: issues.length === 0\n        ? [{ message: 'No issues found under this rule', status: 'Passed' }]\n        : issues\n    });\n  }\n\n  checkDeprecatedCSSUsage() {\n    const deprecatedPatterns = [\n      { pattern: /:has\\s*\\(/gi, name: ':has() selector (limited browser support)' }\n    ];\n\n    const issues = [];\n\n    deprecatedPatterns.forEach(({ pattern, name }) => {\n      let match;\n      while ((match = pattern.exec(this.cssContent)) !== null) {\n        const cssBlock = this.extractCSSBlockAroundPosition(match.index);\n        issues.push({\n          deprecatedFeature: name,\n          message: `Deprecated CSS usage: \"${name}\"`,\n          cssBlock: cssBlock\n        });\n      }\n    });\n\n    this.ruleResults.push({\n      ruleName: 'No Deprecated CSS Usage',\n      status: issues.length === 0 ? 'Passed' : 'Failed',\n      issues: issues.length === 0\n        ? [{ message: 'No issues found under this rule', status: 'Passed' }]\n        : issues\n    });\n  }\n\n  checkUnnecessaryImportant() {\n    const ruleBlocks = this.extractRuleBlocks();\n    const issues = [];\n\n    ruleBlocks.forEach(({ selector, cssBlock, properties }) => {\n      properties.forEach(({ prop, value }) => {\n        if (value.includes('!important')) {\n          issues.push({\n            selector: selector,\n            property: prop.trim().toLowerCase(),\n            flaggedDeclaration: `${prop}:${value}`,\n            message: 'Unnecessary !important flag detected',\n            cssBlock: cssBlock\n          });\n        }\n      });\n    });\n\n    this.ruleResults.push({\n      ruleName: 'Flag Unnecessary Usage of !important',\n      status: issues.length === 0 ? 'Passed' : 'Failed',\n      issues: issues.length === 0\n        ? [{ message: 'No issues found under this rule', status: 'Passed' }]\n        : issues\n    });\n  }\n\n  checkEmptyRulesets() {\n    const emptyRulePattern = /([^{}]+)\\{\\s*\\}/g;\n    const issues = [];\n\n    let match;\n    while ((match = emptyRulePattern.exec(this.cssContent)) !== null) {\n      const selector = match[1].trim();\n      const cssBlock = match[0];\n      issues.push({\n        selector: selector,\n        message: `Empty ruleset found for selector \"${selector}\"`,\n        cssBlock: cssBlock\n      });\n    }\n\n    this.ruleResults.push({\n      ruleName: 'No Empty CSS Rulesets',\n      status: issues.length === 0 ? 'Passed' : 'Failed',\n      issues: issues.length === 0\n        ? [{ message: 'No issues found under this rule', status: 'Passed' }]\n        : issues\n    });\n  }\n\n  extractSelectors() {\n  const selectors = [];\n  \n  // First, remove all media query blocks entirely\n  const cssWithoutMedia = this.cssContent.replace(/@media[^{]*\\{[\\s\\S]*?\\}\\s*\\}/g, '');\n\n  const ruleBlockRegex = /([^{}]+)\\s*\\{([^}]*)\\}/g;\n  let match;\n\n  while ((match = ruleBlockRegex.exec(cssWithoutMedia)) !== null) {\n    const selector = match[1].trim();\n    const cssBlock = match[0];\n    if (selector && !selector.includes(':root') && !selector.includes('@media')) {\n      selectors.push({ selector, cssBlock });\n    }\n  }\n\n  return selectors;\n}\n\n  extractRuleBlocks() {\n    const blocks = [];\n    const ruleBlockRegex = /([^{}]+)\\s*\\{([^}]*)\\}/g;\n    let match;\n\n    while ((match = ruleBlockRegex.exec(this.cssContent)) !== null) {\n      const selector = match[1].trim();\n      const propertiesStr = match[2];\n      const cssBlock = match[0];\n      const properties = [];\n\n      const propPattern = /([^:;]+):([^;]+)/g;\n      let propMatch;\n      while ((propMatch = propPattern.exec(propertiesStr)) !== null) {\n        const prop = propMatch[1].trim();\n        const value = propMatch[2].trim();\n        if (prop && value) {\n          properties.push({ prop, value });\n        }\n      }\n\n      blocks.push({ selector, cssBlock, properties });\n    }\n\n    return blocks;\n  }\n\n  normalizeSelector(selector) {\n    return selector\n      .split(',')\n      .map(s => s.trim())\n      .filter(s => s)\n      .sort()\n      .join(', ');\n  }\n\n  checkCommentedCode() {\n  const issues = [];\n\n  // Match all /* ... */ comment blocks\n  const commentPattern = /\\/\\*[\\s\\S]*?\\*\\//g;\n  let match;\n\n  while ((match = commentPattern.exec(this.cssContent)) !== null) {\n    const commentContent = match[0];\n\n    // Check if comment contains actual CSS-like code\n    const hasCSSContent = (\n      /[a-zA-Z-]+\\s*:\\s*[^*]+/.test(commentContent) ||   // property: value\n      /[.#\\w]+\\s*\\{/.test(commentContent) ||              // selector {\n      /@media/.test(commentContent) ||                    // @media blocks\n      /--[\\w-]+\\s*:/.test(commentContent)                 // CSS variables\n    );\n\n    if (hasCSSContent) {\n      issues.push({\n        message: `Commented-out CSS code detected`,\n        cssBlock: commentContent.trim()\n      });\n    }\n  }\n\n  this.ruleResults.push({\n    ruleName: 'No Commented-Out CSS Code',\n    status: issues.length === 0 ? 'Passed' : 'Failed',\n    issues: issues.length === 0\n      ? [{ message: 'No issues found under this rule', status: 'Passed' }]\n      : issues\n  });\n}\n\n  extractCSSBlockAroundPosition(position) {\n    const contextLength = 150;\n    const start = Math.max(0, position - contextLength);\n    const end = Math.min(this.cssContent.length, position + contextLength);\n\n    let block = this.cssContent.substring(start, end);\n\n    const ruleStart = this.cssContent.lastIndexOf('{', position);\n    const ruleEnd = this.cssContent.indexOf('}', position);\n\n    if (ruleStart !== -1 && ruleEnd !== -1) {\n      block = this.cssContent.substring(ruleStart, ruleEnd + 1);\n    }\n\n    return block.trim();\n  }\n}\n\nconst protectedVariables = [\n  '--brand-color',\n  '--header-font-family',\n  '--text-font-family',\n  '--navbar-height'\n];\n\ntry {\n\n  const input = $input.first();\n\n  if (!input || !input.json) {\n    return [{\n      page_url: pageUrl,\n      isValid: false,\n      error: 'No input data received',\n      totalIssues: 0,\n      totalRulesChecked: 0,\n      passedRulesCount: 0,\n      failedRulesCount: 0,\n      rules: []\n    }];\n  }\n\n  const cssData = input.json.data;\n\n  if (!cssData) {\n    return [{\n      page_url: pageUrl,\n      isValid: false,\n      error: 'No CSS data found in \"data\" field',\n      totalIssues: 0,\n      totalRulesChecked: 0,\n      passedRulesCount: 0,\n      failedRulesCount: 0,\n      rules: []\n    }];\n  }\n\n  const validator = new CSSQCValidator(cssData, protectedVariables);\n  const validationResults = validator.validate();\n\n  return [{\n    page_url: pageUrl,\n    engg_name : $('get-wid-min-css-url-d').first().json.engg_name,\n    ...validationResults\n  }];\n\n} catch (error) {\n\n  return [{\n    page_url: pageUrl,\n    page_url: pageUrl,\n    isValid: false,\n    error: `Validation error: ${error.message}`,\n    totalIssues: 0,\n    totalRulesChecked: 0,\n    passedRulesCount: 0,\n    failedRulesCount: 0,\n    rules: []\n  }];\n\n}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        368,
+        352
+      ],
+      "id": "5dd32096-1892-450d-bf02-91260888c013",
+      "name": "perform-qc-d"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst results = [];\n\nfor (const item of items) {\n  const html = item.json.data;\n\n  // --- 1. Extract inline <style> tags (no src attribute) ---\n  const inlineStyleRegex = /<style(?![^>]*src)[^>]*>([\\s\\S]*?)<\\/style>/gi;\n  let inlineCSS = \"\";\n  let match;\n\n  while ((match = inlineStyleRegex.exec(html)) !== null) {\n    inlineCSS += match[1].trim() + \"\\n\";\n  }\n\n  // --- 2. Extract <link> tags where href contains \"simp-widgets.min\" ---\n  const linkTagRegex = /<link[^>]+href=[\"']([^\"']*simp-widgets\\.min[^\"']*)[\"'][^>]*>/gi;\n  const simpWidgetURLs = [];\n\n  while ((match = linkTagRegex.exec(html)) !== null) {\n    simpWidgetURLs.push(match[1]);\n  }\n\n  // --- 3. Extract all H1 tags ---\n  const h1Regex = /<h1[^>]*>([\\s\\S]*?)<\\/h1>/gi;\n  const h1Tags = [];\n\n  while ((match = h1Regex.exec(html)) !== null) {\n    const innerText = match[1]\n      .replace(/<[^>]+>/g, '')\n      .replace(/&nbsp;/g, ' ')\n      .replace(/&amp;/g, '&')\n      .replace(/&lt;/g, '<')\n      .replace(/&gt;/g, '>')\n      .replace(/\\s+/g, ' ')\n      .trim();\n    h1Tags.push(innerText);\n  }\n\n  // --- 4. Extract all <img> tags and check alt attribute ---\n  const imgRegex = /<img[\\s\\S]*?>/gi;\n  const imgMissingAlt = [];\n  const imgEmptyAlt   = [];\n  let imgTotal = 0;\n\n  while ((match = imgRegex.exec(html)) !== null) {\n    const tag = match[0];\n\n    // Skip tracking pixels / tiny images (width=1 or height=1)\n    if (/width=[\"']?1[\"']?/i.test(tag) || /height=[\"']?1[\"']?/i.test(tag)) continue;\n\n    imgTotal++;\n\n    // Extract src for reference in report\n    const srcMatch = tag.match(/src=[\"']([^\"']+)[\"']/i);\n    const src = srcMatch ? srcMatch[1] : 'unknown src';\n\n    const hasAlt = /\\balt\\s*=/i.test(tag);\n\n    if (!hasAlt) {\n      // alt attribute completely missing\n      imgMissingAlt.push({ src, tag });\n    } else {\n      // alt attribute present — check if empty or whitespace only\n      const altValueMatch = tag.match(/\\balt\\s*=\\s*[\"']([^\"']*)[\"']/i);\n      const altValue = altValueMatch ? altValueMatch[1].trim() : '';\n      if (altValue === '') {\n        imgEmptyAlt.push({ src, tag });\n      }\n    }\n  }\n\n  // --- 5. Extract all <video> tags and check title/aria-label attribute ---\n  const videoRegex = /<video[\\s\\S]*?>/gi;\n  const videoMissingTitle = [];\n  const videoEmptyTitle   = [];\n  let videoTotal = 0;\n\n  while ((match = videoRegex.exec(html)) !== null) {\n    const tag = match[0];\n    videoTotal++;\n\n    const hasTitle     = /\\btitle\\s*=/i.test(tag);\n    const hasAriaLabel = /\\baria-label\\s*=/i.test(tag);\n\n    if (!hasTitle && !hasAriaLabel) {\n      // Neither title nor aria-label present\n      videoMissingTitle.push({ tag });\n    } else {\n      // Check if title is present but empty\n      if (hasTitle) {\n        const titleValueMatch = tag.match(/\\btitle\\s*=\\s*[\"']([^\"']*)[\"']/i);\n        const titleValue = titleValueMatch ? titleValueMatch[1].trim() : '';\n        if (titleValue === '') {\n          videoEmptyTitle.push({ tag });\n        }\n      }\n      // Check if aria-label is present but empty\n      if (hasAriaLabel) {\n        const ariaValueMatch = tag.match(/\\baria-label\\s*=\\s*[\"']([^\"']*)[\"']/i);\n        const ariaValue = ariaValueMatch ? ariaValueMatch[1].trim() : '';\n        if (ariaValue === '') {\n          videoEmptyTitle.push({ tag });\n        }\n      }\n    }\n  }\n\n  results.push({\n    json: {\n      pageUrl: $('Loop Over Items').first().json.url,\n      engg_name: $('Loop Over Items').first().json.engg_name,\n      inlineCSS: inlineCSS || null,\n      simpWidgetCSSFiles: simpWidgetURLs,\n\n      // H1\n      h1Tags,\n      h1Count: h1Tags.length,\n\n      // Images\n      images: {\n        total:      imgTotal,\n        missingAlt: imgMissingAlt,\n        emptyAlt:   imgEmptyAlt,\n      },\n\n      // Videos\n      videos: {\n        total:        videoTotal,\n        missingTitle: videoMissingTitle,\n        emptyTitle:   videoEmptyTitle,\n      }\n    }\n  });\n}\n\nreturn results;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -32,
+        624
+      ],
+      "id": "6f594000-9623-464c-b677-6a6faf2d47ae",
+      "name": "get-wid-min-css-url-d"
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "rules",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        512,
+        288
+      ],
+      "id": "e458d312-96fe-4037-a2be-6c28be9f0511",
+      "name": "Split Out-result-d"
+    },
+    {
+      "parameters": {
+        "jsCode": "const output = [];\n\nfor (const item of $input.all()) {\n\n  const rule = item.json;\n\n  if (!rule.issues || !Array.isArray(rule.issues)) continue;\n\n  const totalOccurrences = rule.issues.length;\n\n  for (const issue of rule.issues) {\n\n    // if (issue.status === \"Passed\") continue;\n\n    output.push({\n      json: {\n        ruleName: rule.ruleName || \"\",\n        status: rule.status || \"\",\n        selector: issue.selector || \"\",\n        message: issue.message || \"\",\n        cssBlock: issue.cssBlock || \"\",\n        firstOccurrence: issue.firstOccurrence || \"\",\n        secondOccurrence: issue.secondOccurrence || \"\",\n        totalOccurrences: totalOccurrences,\n        pageUrl : $('perform-qc-d').first().json.page_url,\n        engg_name : $('perform-qc-d').first().json.engg_name\n      }\n    });\n\n  }\n}\n\nreturn output;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        656,
+        384
+      ],
+      "id": "5344b7ae-0ff9-48e8-8354-7fe1c281a195",
+      "name": "format-payload-d"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.simpWidgetCSSFiles[0] }}",
+        "options": {}
+      },
+      "id": "1fdd40f1-9ba6-4902-81d1-100eca065659",
+      "name": "get widget.min css-d2",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        176,
+        608
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst results = [];\n\nfor (const item of items) {\n  const html = item.json.data;\n\n  // --- 1. Extract inline <style> tags (no src attribute) ---\n  const inlineStyleRegex = /<style(?![^>]*src)[^>]*>([\\s\\S]*?)<\\/style>/gi;\n  let inlineCSS = \"\";\n  let match;\n\n  while ((match = inlineStyleRegex.exec(html)) !== null) {\n    inlineCSS += match[1].trim() + \"\\n\";\n  }\n\n  // --- 2. Extract <link> tags where href contains \"simp-widgets.min\" ---\n  const linkTagRegex = /<link[^>]+href=[\"']([^\"']*simp-widgets\\.min[^\"']*)[\"'][^>]*>/gi;\n  const simpWidgetURLs = [];\n\n  while ((match = linkTagRegex.exec(html)) !== null) {\n    simpWidgetURLs.push(match[1]);\n  }\n\n  // --- 3. Extract all H1 tags ---\n  const h1Regex = /<h1[^>]*>([\\s\\S]*?)<\\/h1>/gi;\n  const h1Tags = [];\n\n  while ((match = h1Regex.exec(html)) !== null) {\n    const innerText = match[1]\n      .replace(/<[^>]+>/g, '')\n      .replace(/&nbsp;/g, ' ')\n      .replace(/&amp;/g, '&')\n      .replace(/&lt;/g, '<')\n      .replace(/&gt;/g, '>')\n      .replace(/\\s+/g, ' ')\n      .trim();\n    h1Tags.push(innerText);\n  }\n\n  // --- 4. Extract all <img> tags and check alt attribute ---\n  const imgRegex = /<img[\\s\\S]*?>/gi;\n  const imgMissingAlt = [];\n  const imgEmptyAlt   = [];\n  let imgTotal = 0;\n\n  while ((match = imgRegex.exec(html)) !== null) {\n    const tag = match[0];\n\n    // Skip tracking pixels / tiny images (width=1 or height=1)\n    if (/width=[\"']?1[\"']?/i.test(tag) || /height=[\"']?1[\"']?/i.test(tag)) continue;\n\n    imgTotal++;\n\n    // Extract src for reference in report\n    const srcMatch = tag.match(/src=[\"']([^\"']+)[\"']/i);\n    const src = srcMatch ? srcMatch[1] : 'unknown src';\n\n    const hasAlt = /\\balt\\s*=/i.test(tag);\n\n    if (!hasAlt) {\n      // alt attribute completely missing\n      imgMissingAlt.push({ src, tag });\n    } else {\n      // alt attribute present — check if empty or whitespace only\n      const altValueMatch = tag.match(/\\balt\\s*=\\s*[\"']([^\"']*)[\"']/i);\n      const altValue = altValueMatch ? altValueMatch[1].trim() : '';\n      if (altValue === '') {\n        imgEmptyAlt.push({ src, tag });\n      }\n    }\n  }\n\n  // --- 5. Extract all <video> tags and check title/aria-label attribute ---\n  const videoRegex = /<video[\\s\\S]*?>/gi;\n  const videoMissingTitle = [];\n  const videoEmptyTitle   = [];\n  let videoTotal = 0;\n\n  while ((match = videoRegex.exec(html)) !== null) {\n    const tag = match[0];\n    videoTotal++;\n\n    const hasTitle     = /\\btitle\\s*=/i.test(tag);\n    const hasAriaLabel = /\\baria-label\\s*=/i.test(tag);\n\n    if (!hasTitle && !hasAriaLabel) {\n      // Neither title nor aria-label present\n      videoMissingTitle.push({ tag });\n    } else {\n      // Check if title is present but empty\n      if (hasTitle) {\n        const titleValueMatch = tag.match(/\\btitle\\s*=\\s*[\"']([^\"']*)[\"']/i);\n        const titleValue = titleValueMatch ? titleValueMatch[1].trim() : '';\n        if (titleValue === '') {\n          videoEmptyTitle.push({ tag });\n        }\n      }\n      // Check if aria-label is present but empty\n      if (hasAriaLabel) {\n        const ariaValueMatch = tag.match(/\\baria-label\\s*=\\s*[\"']([^\"']*)[\"']/i);\n        const ariaValue = ariaValueMatch ? ariaValueMatch[1].trim() : '';\n        if (ariaValue === '') {\n          videoEmptyTitle.push({ tag });\n        }\n      }\n    }\n  }\n\n  results.push({\n    json: {\n      pageUrl: $('Loop Over Items').first().json.url,\n      engg_name: $('Loop Over Items').first().json.engg_name,\n      inlineCSS: inlineCSS || null,\n      simpWidgetCSSFiles: simpWidgetURLs,\n\n      // H1\n      h1Tags,\n      h1Count: h1Tags.length,\n\n      // Images\n      images: {\n        total:      imgTotal,\n        missingAlt: imgMissingAlt,\n        emptyAlt:   imgEmptyAlt,\n      },\n\n      // Videos\n      videos: {\n        total:        videoTotal,\n        missingTitle: videoMissingTitle,\n        emptyTitle:   videoEmptyTitle,\n      }\n    }\n  });\n}\n\nreturn results;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -32,
+        336
+      ],
+      "id": "e9416881-d0f7-473f-9e38-83e04ad12ab4",
+      "name": "get-wid-min-css-url-d1"
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "rules",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        -96,
+        1072
+      ],
+      "id": "da7da284-3aae-4321-a30e-f4c6cfffd50a",
+      "name": "Split Out-result-d2"
+    },
+    {
+      "parameters": {
+        "jsCode": "const output = [];\n\nfor (const item of $input.all()) {\n\n  const rule = item.json;\n\n  if (!rule.issues || !Array.isArray(rule.issues)) continue;\n\n  const totalOccurrences = rule.issues.length;\n\n  for (const issue of rule.issues) {\n\n    // if (issue.status === \"Passed\") continue;\n\n    output.push({\n      json: {\n        ruleName: rule.ruleName || \"\",\n        status: rule.status || \"\",\n        selector: issue.selector || \"\",\n        message: issue.message || \"\",\n        cssBlock: issue.cssBlock || \"\",\n        firstOccurrence: issue.firstOccurrence || \"\",\n        secondOccurrence: issue.secondOccurrence || \"\",\n        totalOccurrences: totalOccurrences,\n        pageUrl : $('perform-qc-m2').first().json.page_url,\n        engg_name : $('perform-qc-m2').first().json.engg_name\n      }\n    });\n\n  }\n}\n\nreturn output;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        432,
+        800
+      ],
+      "id": "c056cc11-426c-43af-9e56-b059db572b20",
+      "name": "format-payload-d1"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json['Page URL'] }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "Mozilla/5.0 (iPhone; CPU iPhone OS 14_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0.3 Mobile/15E148 Safari/604.1"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "f957b33a-bfb1-4685-9847-cc9a7cc3231f",
+      "name": "Get page data Mobile1",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -272,
+        320
+      ]
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        -336,
+        -32
+      ],
+      "id": "929b2d8d-6bf5-44d5-a420-a1a9fee19d2a",
+      "name": "Wait",
+      "webhookId": "6acd8e72-8be1-4c4c-83d4-059038636329"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Loop over input items and add a new field called 'myNewField' to the JSON of each one\nfor (const item of $input.all()) {\n  item.json.myNewField = 1;\n}\n\nreturn $input.all()[0];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -320,
+        160
+      ],
+      "id": "df388d0c-053d-49c0-9c6e-17b125e8437f",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "content": "\n\n\n\n\n\n\n# Hi,You  Want To  QC Varient Code?\n## Steps : \n\n## Click On Execute Workflow\n## 1. Enter Website Url \n## 2. Name of a person conducting QC.\n## 3. Get the Result in a sheet : https://docs.google.com/spreadsheets/d/1PQTVbO5FemaTAzL6qGW0zLoeQTG9GtLz09lFejEiByw/edit?gid=0#gid=0",
+        "height": 560,
+        "width": 704
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -1120,
+        32
+      ],
+      "typeVersion": 1,
+      "id": "63a21b9d-4f97-454b-b28a-4ddf3fdc0baf",
+      "name": "Varient Qc Steps."
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1PQTVbO5FemaTAzL6qGW0zLoeQTG9GtLz09lFejEiByw",
+          "mode": "list",
+          "cachedResultName": "Variant QC Automation Results",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1PQTVbO5FemaTAzL6qGW0zLoeQTG9GtLz09lFejEiByw/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "https://docs.google.com/spreadsheets/d/1PQTVbO5FemaTAzL6qGW0zLoeQTG9GtLz09lFejEiByw/edit#gid=1143818063",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1216,
+        560
+      ],
+      "id": "4d9c4694-09ba-4744-98bb-9206ba2a1db8",
+      "name": "update qc result desktop2",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "QXavCMd62qyupIc3",
+          "name": "Design sheet"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// CSS QC Validator for N8N - Minified CSS Support\n// Input: Array of objects with \"data\" field containing minified CSS\n// Output: Single array with all rules (passed + failed mixed in order)\n// Features: Full validation, occurrence tracking, exact CSS block extraction\n\nconst pageUrl = $('get-wid-min-css-url-d').first().json.pageUrl;\n\nclass CSSQCValidator {\n  constructor(cssContent, protectedVariables = []) {\n    this.cssContent = cssContent;\n    this.protectedVariables = protectedVariables;\n    this.ruleResults = [];\n  }\n\n  validate() {\n    this.checkDuplicateSelectors();\n    this.checkDuplicateProperties();\n    this.checkProtectedVariableOverrides();\n    this.checkEmptyVariables();\n    this.checkDeprecatedCSSUsage();\n    this.checkUnnecessaryImportant();\n    this.checkEmptyRulesets();\n    this.checkCommentedCode();\n\n    const passedRules = this.ruleResults.filter(r => r.status === 'Passed');\n    const failedRules = this.ruleResults.filter(r => r.status === 'Failed');\n\n    const totalIssues = failedRules.reduce((sum, rule) => {\n      return sum + rule.issues.length;\n    }, 0);\n\n    return {\n      isValid: failedRules.length === 0,\n      totalIssues: totalIssues,\n      totalRulesChecked: this.ruleResults.length,\n      passedRulesCount: passedRules.length,\n      failedRulesCount: failedRules.length,\n      rules: this.ruleResults\n    };\n  }\n\n  checkDuplicateSelectors() {\n    const selectors = this.extractSelectors();\n    const selectorMap = new Map();\n    const issues = [];\n\n    selectors.forEach(({ selector, cssBlock }) => {\n      const normalized = this.normalizeSelector(selector);\n      if (selectorMap.has(normalized)) {\n        const existingBlock = selectorMap.get(normalized);\n        issues.push({\n          selector: normalized,\n          message: `Duplicate selector \"${normalized}\" found`,\n          firstOccurrence: existingBlock,\n          secondOccurrence: cssBlock\n        });\n      } else {\n        selectorMap.set(normalized, cssBlock);\n      }\n    });\n\n    this.ruleResults.push({\n      ruleName: 'No Duplicate CSS Selectors',\n      status: issues.length === 0 ? 'Passed' : 'Failed',\n      issues: issues.length === 0\n        ? [{ message: 'No issues found under this rule', status: 'Passed' }]\n        : issues\n    });\n  }\n\n  checkDuplicateProperties() {\n    const ruleBlocks = this.extractRuleBlocks();\n    const issues = [];\n\n    ruleBlocks.forEach(({ selector, cssBlock, properties }) => {\n      const propertyMap = new Map();\n\n      properties.forEach(({ prop, value }) => {\n        const normalized = prop.trim().toLowerCase();\n        if (propertyMap.has(normalized)) {\n          issues.push({\n            selector: selector,\n            property: normalized,\n            message: `Duplicate property \"${normalized}\" in selector \"${selector}\"`,\n            cssBlock: cssBlock\n          });\n        } else {\n          propertyMap.set(normalized, value);\n        }\n      });\n    });\n\n    this.ruleResults.push({\n      ruleName: 'No Duplicate Properties Within Same Selector',\n      status: issues.length === 0 ? 'Passed' : 'Failed',\n      issues: issues.length === 0\n        ? [{ message: 'No issues found under this rule', status: 'Passed' }]\n        : issues\n    });\n  }\n\n  checkProtectedVariableOverrides() {\n    const definitionPattern = /--([\\w-]+)\\s*:\\s*([^;{}]+)/g;\n    const protectedSet = new Set(this.protectedVariables.map(v => v.replace('--', '')));\n    const issues = [];\n\n    let match;\n    while ((match = definitionPattern.exec(this.cssContent)) !== null) {\n      const varName = match[1];\n      if (protectedSet.has(varName)) {\n        const cssBlock = this.extractCSSBlockAroundPosition(match.index);\n        issues.push({\n          variable: `--${varName}`,\n          message: `Protected variable \"--${varName}\" is being redefined`,\n          cssBlock: cssBlock\n        });\n      }\n    }\n\n    this.ruleResults.push({\n      ruleName: 'Design Setting Variables Must Not Be Overridden',\n      status: issues.length === 0 ? 'Passed' : 'Failed',\n      issues: issues.length === 0\n        ? [{ message: 'No issues found under this rule', status: 'Passed' }]\n        : issues\n    });\n  }\n\n  checkEmptyVariables() {\n    const varPattern = /--([\\w-]+)\\s*:\\s*([^;{}]*?)[;{}]/g;\n    const issues = [];\n\n    let match;\n    while ((match = varPattern.exec(this.cssContent)) !== null) {\n      const varName = match[1];\n      const varValue = match[2].trim();\n\n      if (varValue === '' || varValue === '\"\"' || varValue === \"''\") {\n        const cssBlock = this.extractCSSBlockAroundPosition(match.index);\n        issues.push({\n          variable: `--${varName}`,\n          message: `Variable \"--${varName}\" has an empty value`,\n          cssBlock: cssBlock\n        });\n      }\n    }\n\n    this.ruleResults.push({\n      ruleName: 'No Variables With Empty Values',\n      status: issues.length === 0 ? 'Passed' : 'Failed',\n      issues: issues.length === 0\n        ? [{ message: 'No issues found under this rule', status: 'Passed' }]\n        : issues\n    });\n  }\n\n  checkDeprecatedCSSUsage() {\n    const deprecatedPatterns = [\n      { pattern: /:has\\s*\\(/gi, name: ':has() selector (limited browser support)' }\n    ];\n\n    const issues = [];\n\n    deprecatedPatterns.forEach(({ pattern, name }) => {\n      let match;\n      while ((match = pattern.exec(this.cssContent)) !== null) {\n        const cssBlock = this.extractCSSBlockAroundPosition(match.index);\n        issues.push({\n          deprecatedFeature: name,\n          message: `Deprecated CSS usage: \"${name}\"`,\n          cssBlock: cssBlock\n        });\n      }\n    });\n\n    this.ruleResults.push({\n      ruleName: 'No Deprecated CSS Usage',\n      status: issues.length === 0 ? 'Passed' : 'Failed',\n      issues: issues.length === 0\n        ? [{ message: 'No issues found under this rule', status: 'Passed' }]\n        : issues\n    });\n  }\n\n  checkUnnecessaryImportant() {\n    const ruleBlocks = this.extractRuleBlocks();\n    const issues = [];\n\n    ruleBlocks.forEach(({ selector, cssBlock, properties }) => {\n      properties.forEach(({ prop, value }) => {\n        if (value.includes('!important')) {\n          issues.push({\n            selector: selector,\n            property: prop.trim().toLowerCase(),\n            flaggedDeclaration: `${prop}:${value}`,\n            message: 'Unnecessary !important flag detected',\n            cssBlock: cssBlock\n          });\n        }\n      });\n    });\n\n    this.ruleResults.push({\n      ruleName: 'Flag Unnecessary Usage of !important',\n      status: issues.length === 0 ? 'Passed' : 'Failed',\n      issues: issues.length === 0\n        ? [{ message: 'No issues found under this rule', status: 'Passed' }]\n        : issues\n    });\n  }\n\n  checkEmptyRulesets() {\n    const emptyRulePattern = /([^{}]+)\\{\\s*\\}/g;\n    const issues = [];\n\n    let match;\n    while ((match = emptyRulePattern.exec(this.cssContent)) !== null) {\n      const selector = match[1].trim();\n      const cssBlock = match[0];\n      issues.push({\n        selector: selector,\n        message: `Empty ruleset found for selector \"${selector}\"`,\n        cssBlock: cssBlock\n      });\n    }\n\n    this.ruleResults.push({\n      ruleName: 'No Empty CSS Rulesets',\n      status: issues.length === 0 ? 'Passed' : 'Failed',\n      issues: issues.length === 0\n        ? [{ message: 'No issues found under this rule', status: 'Passed' }]\n        : issues\n    });\n  }\n\n  // extractSelectors() {\n  //   const selectors = [];\n  //   const ruleBlockRegex = /([^{}]+)\\s*\\{([^}]*)\\}/g;\n  //   let match;\n\n  //   while ((match = ruleBlockRegex.exec(this.cssContent)) !== null) {\n  //     const selector = match[1].trim();\n  //     const cssBlock = match[0];\n\n  //     if (selector && !selector.includes(':root') && !selector.includes('@media')) {\n  //       selectors.push({ selector, cssBlock });\n  //     }\n  //   }\n\n  //   return selectors;\n  // }\n\n  extractSelectors() {\n  const selectors = [];\n  \n  // First, remove all media query blocks entirely\n  const cssWithoutMedia = this.cssContent.replace(/@media[^{]*\\{[\\s\\S]*?\\}\\s*\\}/g, '');\n\n  const ruleBlockRegex = /([^{}]+)\\s*\\{([^}]*)\\}/g;\n  let match;\n\n  while ((match = ruleBlockRegex.exec(cssWithoutMedia)) !== null) {\n    const selector = match[1].trim();\n    const cssBlock = match[0];\n    if (selector && !selector.includes(':root') && !selector.includes('@media')) {\n      selectors.push({ selector, cssBlock });\n    }\n  }\n\n  return selectors;\n}\n\n  extractRuleBlocks() {\n    const blocks = [];\n    const ruleBlockRegex = /([^{}]+)\\s*\\{([^}]*)\\}/g;\n    let match;\n\n    while ((match = ruleBlockRegex.exec(this.cssContent)) !== null) {\n      const selector = match[1].trim();\n      const propertiesStr = match[2];\n      const cssBlock = match[0];\n      const properties = [];\n\n      const propPattern = /([^:;]+):([^;]+)/g;\n      let propMatch;\n      while ((propMatch = propPattern.exec(propertiesStr)) !== null) {\n        const prop = propMatch[1].trim();\n        const value = propMatch[2].trim();\n        if (prop && value) {\n          properties.push({ prop, value });\n        }\n      }\n\n      blocks.push({ selector, cssBlock, properties });\n    }\n\n    return blocks;\n  }\n\n  normalizeSelector(selector) {\n    return selector\n      .split(',')\n      .map(s => s.trim())\n      .filter(s => s)\n      .sort()\n      .join(', ');\n  }\n\n  checkCommentedCode() {\n  const issues = [];\n\n  // Match all /* ... */ comment blocks\n  const commentPattern = /\\/\\*[\\s\\S]*?\\*\\//g;\n  let match;\n\n  while ((match = commentPattern.exec(this.cssContent)) !== null) {\n    const commentContent = match[0];\n\n    // Check if comment contains actual CSS-like code\n    const hasCSSContent = (\n      /[a-zA-Z-]+\\s*:\\s*[^*]+/.test(commentContent) ||   // property: value\n      /[.#\\w]+\\s*\\{/.test(commentContent) ||              // selector {\n      /@media/.test(commentContent) ||                    // @media blocks\n      /--[\\w-]+\\s*:/.test(commentContent)                 // CSS variables\n    );\n\n    if (hasCSSContent) {\n      issues.push({\n        message: `Commented-out CSS code detected`,\n        cssBlock: commentContent.trim()\n      });\n    }\n  }\n\n  this.ruleResults.push({\n    ruleName: 'No Commented-Out CSS Code',\n    status: issues.length === 0 ? 'Passed' : 'Failed',\n    issues: issues.length === 0\n      ? [{ message: 'No issues found under this rule', status: 'Passed' }]\n      : issues\n  });\n}\n\n  extractCSSBlockAroundPosition(position) {\n    const contextLength = 150;\n    const start = Math.max(0, position - contextLength);\n    const end = Math.min(this.cssContent.length, position + contextLength);\n\n    let block = this.cssContent.substring(start, end);\n\n    const ruleStart = this.cssContent.lastIndexOf('{', position);\n    const ruleEnd = this.cssContent.indexOf('}', position);\n\n    if (ruleStart !== -1 && ruleEnd !== -1) {\n      block = this.cssContent.substring(ruleStart, ruleEnd + 1);\n    }\n\n    return block.trim();\n  }\n}\n\nconst protectedVariables = [\n  '--brand-color',\n  '--header-font-family',\n  '--text-font-family',\n  '--navbar-height'\n];\n\ntry {\n\n  const input = $input.first();\n\n  if (!input || !input.json) {\n    return [{\n      page_url: pageUrl,\n      isValid: false,\n      error: 'No input data received',\n      totalIssues: 0,\n      totalRulesChecked: 0,\n      passedRulesCount: 0,\n      failedRulesCount: 0,\n      rules: []\n    }];\n  }\n\n  const cssData = input.json.data;\n\n  if (!cssData) {\n    return [{\n      page_url: pageUrl,\n      isValid: false,\n      error: 'No CSS data found in \"data\" field',\n      totalIssues: 0,\n      totalRulesChecked: 0,\n      passedRulesCount: 0,\n      failedRulesCount: 0,\n      rules: []\n    }];\n  }\n\n  const validator = new CSSQCValidator(cssData, protectedVariables);\n  const validationResults = validator.validate();\n\n  return [{\n    page_url: pageUrl,\n    engg_name : $('get-wid-min-css-url-d').first().json.engg_name,\n    ...validationResults\n  }];\n\n} catch (error) {\n\n  return [{\n    page_url: pageUrl,\n    page_url: pageUrl,\n    isValid: false,\n    error: `Validation error: ${error.message}`,\n    totalIssues: 0,\n    totalRulesChecked: 0,\n    passedRulesCount: 0,\n    failedRulesCount: 0,\n    rules: []\n  }];\n\n}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -96,
+        800
+      ],
+      "id": "4adc7655-5c39-4db6-8ce8-34a6763fa276",
+      "name": "perform-qc-m2"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1PQTVbO5FemaTAzL6qGW0zLoeQTG9GtLz09lFejEiByw",
+          "mode": "list",
+          "cachedResultName": "Variant QC Automation Results",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1PQTVbO5FemaTAzL6qGW0zLoeQTG9GtLz09lFejEiByw/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1143818063,
+          "mode": "list",
+          "cachedResultName": "cgh",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1PQTVbO5FemaTAzL6qGW0zLoeQTG9GtLz09lFejEiByw/edit#gid=1143818063"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Timestamp": "={{ new Date().toLocaleString('en-IN', {    year: 'numeric',    month: 'long',    day: 'numeric',    hour: '2-digit',    minute: '2-digit',    second: '2-digit' }) }}",
+            "Page URL": "={{ $json.pageUrl }}",
+            "Device Type": "Desktop",
+            "Rule": "={{ $json.ruleName }}",
+            "Selector": "={{ $json.selector }}",
+            "Status": "={{ $json.status }}",
+            "Issue Description": "={{ $json.message }}",
+            "isValid": "=",
+            "totalIssues": "=",
+            "failedRules": "=",
+            "QC Done by Engineer Name (To be filled manually)": "={{ $json.engg_name }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Timestamp",
+              "displayName": "Timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Page URL",
+              "displayName": "Page URL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Device Type",
+              "displayName": "Device Type",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Rule",
+              "displayName": "Rule",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Status",
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Selector",
+              "displayName": "Selector",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Issue Description",
+              "displayName": "Issue Description",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "QC Done by Engineer Name (To be filled manually)",
+              "displayName": "QC Done by Engineer Name (To be filled manually)",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "isValid",
+              "displayName": "isValid",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "totalIssues",
+              "displayName": "totalIssues",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "failedRules",
+              "displayName": "failedRules",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1104,
+        720
+      ],
+      "id": "6ed5191e-f55c-49af-9bfe-b0b320ebfb51",
+      "name": "update qc result cgh",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "QXavCMd62qyupIc3",
+          "name": "Design sheet"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1PQTVbO5FemaTAzL6qGW0zLoeQTG9GtLz09lFejEiByw",
+          "mode": "list",
+          "cachedResultName": "Variant QC Automation Results",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1PQTVbO5FemaTAzL6qGW0zLoeQTG9GtLz09lFejEiByw/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1143818063,
+          "mode": "list",
+          "cachedResultName": "cgh",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1PQTVbO5FemaTAzL6qGW0zLoeQTG9GtLz09lFejEiByw/edit#gid=1143818063"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Timestamp": "={{ new Date().toLocaleString('en-IN', {    year: 'numeric',    month: 'long',    day: 'numeric',    hour: '2-digit',    minute: '2-digit',    second: '2-digit' }) }}",
+            "Page URL": "={{ $json.pageUrl }}",
+            "Rule": "={{ $json.ruleName }}",
+            "Device Type": "Mobile",
+            "Status": "={{ $json.status }}",
+            "Issue Description": "={{ $json.message }}",
+            "Selector": "={{ $json.selector }}",
+            "QC Done by Engineer Name (To be filled manually)": "={{ $json.engg_name }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Timestamp",
+              "displayName": "Timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Page URL",
+              "displayName": "Page URL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Device Type",
+              "displayName": "Device Type",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Rule",
+              "displayName": "Rule",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Status",
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Selector",
+              "displayName": "Selector",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Issue Description",
+              "displayName": "Issue Description",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "QC Done by Engineer Name (To be filled manually)",
+              "displayName": "QC Done by Engineer Name (To be filled manually)",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "isValid",
+              "displayName": "isValid",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "totalIssues",
+              "displayName": "totalIssues",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "failedRules",
+              "displayName": "failedRules",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1104,
+        944
+      ],
+      "id": "27d8dfb4-cb78-4d8a-a5e2-e16d01231405",
+      "name": "update qc result mob-cgh",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "QXavCMd62qyupIc3",
+          "name": "Design sheet"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1PQTVbO5FemaTAzL6qGW0zLoeQTG9GtLz09lFejEiByw",
+          "mode": "list",
+          "cachedResultName": "Variant QC Automation Results",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1PQTVbO5FemaTAzL6qGW0zLoeQTG9GtLz09lFejEiByw/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 982142075,
+          "mode": "list",
+          "cachedResultName": "Marco",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1PQTVbO5FemaTAzL6qGW0zLoeQTG9GtLz09lFejEiByw/edit#gid=982142075"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Timestamp": "={{ new Date().toLocaleString('en-IN', {    year: 'numeric',    month: 'long',    day: 'numeric',    hour: '2-digit',    minute: '2-digit',    second: '2-digit' }) }}",
+            "Page URL": "={{ $json.pageUrl }}",
+            "Rule": "={{ $json.ruleName }}",
+            "Device Type": "Mobile",
+            "Status": "={{ $json.status }}",
+            "Issue Description": "={{ $json.message }}",
+            "Selector": "={{ $json.selector }}",
+            "QC Done by Engineer Name (To be filled manually)": "={{ $json.engg_name }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Timestamp",
+              "displayName": "Timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Page URL",
+              "displayName": "Page URL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Device Type",
+              "displayName": "Device Type",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Rule",
+              "displayName": "Rule",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Status",
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Selector",
+              "displayName": "Selector",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Issue Description",
+              "displayName": "Issue Description",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "QC Done by Engineer Name (To be filled manually)",
+              "displayName": "QC Done by Engineer Name (To be filled manually)",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "isValid",
+              "displayName": "isValid",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "totalIssues",
+              "displayName": "totalIssues",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "failedRules",
+              "displayName": "failedRules",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1328,
+        960
+      ],
+      "id": "e7bd3c37-f3fd-4f0d-af67-1ba31c0d07ce",
+      "name": "update qc result mob-marco",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "QXavCMd62qyupIc3",
+          "name": "Design sheet"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1PQTVbO5FemaTAzL6qGW0zLoeQTG9GtLz09lFejEiByw",
+          "mode": "list",
+          "cachedResultName": "Variant QC Automation Results",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1PQTVbO5FemaTAzL6qGW0zLoeQTG9GtLz09lFejEiByw/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 982142075,
+          "mode": "list",
+          "cachedResultName": "Marco",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1PQTVbO5FemaTAzL6qGW0zLoeQTG9GtLz09lFejEiByw/edit#gid=982142075"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Timestamp": "={{ new Date().toLocaleString('en-IN', {    year: 'numeric',    month: 'long',    day: 'numeric',    hour: '2-digit',    minute: '2-digit',    second: '2-digit' }) }}",
+            "Page URL": "={{ $json.pageUrl }}",
+            "Device Type": "Desktop",
+            "Rule": "={{ $json.ruleName }}",
+            "Selector": "={{ $json.selector }}",
+            "Status": "={{ $json.status }}",
+            "Issue Description": "={{ $json.message }}",
+            "isValid": "=",
+            "totalIssues": "=",
+            "failedRules": "=",
+            "QC Done by Engineer Name (To be filled manually)": "={{ $json.engg_name }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Timestamp",
+              "displayName": "Timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Page URL",
+              "displayName": "Page URL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Device Type",
+              "displayName": "Device Type",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Rule",
+              "displayName": "Rule",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Status",
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Selector",
+              "displayName": "Selector",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Issue Description",
+              "displayName": "Issue Description",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "QC Done by Engineer Name (To be filled manually)",
+              "displayName": "QC Done by Engineer Name (To be filled manually)",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "isValid",
+              "displayName": "isValid",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "totalIssues",
+              "displayName": "totalIssues",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "failedRules",
+              "displayName": "failedRules",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1328,
+        752
+      ],
+      "id": "dbec337c-5f96-476a-9310-12b9443be595",
+      "name": "update qc result marco",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "QXavCMd62qyupIc3",
+          "name": "Design sheet"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1PQTVbO5FemaTAzL6qGW0zLoeQTG9GtLz09lFejEiByw",
+          "mode": "list",
+          "cachedResultName": "Variant QC Automation Results",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1PQTVbO5FemaTAzL6qGW0zLoeQTG9GtLz09lFejEiByw/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "raintree",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1PQTVbO5FemaTAzL6qGW0zLoeQTG9GtLz09lFejEiByw/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Timestamp": "={{ new Date().toLocaleString('en-IN', {    year: 'numeric',    month: 'long',    day: 'numeric',    hour: '2-digit',    minute: '2-digit',    second: '2-digit' }) }}",
+            "Page URL": "={{ $json.pageUrl }}",
+            "Device Type": "Desktop",
+            "Rule": "={{ $json.ruleName }}",
+            "Selector": "={{ $json.selector }}",
+            "Status": "={{ $json.status }}",
+            "Issue Description": "={{ $json.message }}",
+            "isValid": "=",
+            "totalIssues": "=",
+            "failedRules": "=",
+            "QC Done by Engineer Name (To be filled manually)": "={{ $json.engg_name }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Timestamp",
+              "displayName": "Timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Page URL",
+              "displayName": "Page URL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Device Type",
+              "displayName": "Device Type",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Rule",
+              "displayName": "Rule",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Status",
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Selector",
+              "displayName": "Selector",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Issue Description",
+              "displayName": "Issue Description",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "QC Done by Engineer Name (To be filled manually)",
+              "displayName": "QC Done by Engineer Name (To be filled manually)",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "isValid",
+              "displayName": "isValid",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "totalIssues",
+              "displayName": "totalIssues",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "failedRules",
+              "displayName": "failedRules",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        800,
+        496
+      ],
+      "id": "8d8606fd-302d-4b0d-8776-80fe53ab3c4c",
+      "name": "update qc result desktop-raintree",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "QXavCMd62qyupIc3",
+          "name": "Design sheet"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1PQTVbO5FemaTAzL6qGW0zLoeQTG9GtLz09lFejEiByw",
+          "mode": "list",
+          "cachedResultName": "Variant QC Automation Results",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1PQTVbO5FemaTAzL6qGW0zLoeQTG9GtLz09lFejEiByw/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "raintree",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1PQTVbO5FemaTAzL6qGW0zLoeQTG9GtLz09lFejEiByw/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Timestamp": "={{ new Date().toLocaleString('en-IN', {    year: 'numeric',    month: 'long',    day: 'numeric',    hour: '2-digit',    minute: '2-digit',    second: '2-digit' }) }}",
+            "Page URL": "={{ $json.pageUrl }}",
+            "Rule": "={{ $json.ruleName }}",
+            "Device Type": "Mobile",
+            "Status": "={{ $json.status }}",
+            "Issue Description": "={{ $json.message }}",
+            "Selector": "={{ $json.selector }}",
+            "QC Done by Engineer Name (To be filled manually)": "={{ $json.engg_name }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Timestamp",
+              "displayName": "Timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Page URL",
+              "displayName": "Page URL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Device Type",
+              "displayName": "Device Type",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Rule",
+              "displayName": "Rule",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Status",
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Selector",
+              "displayName": "Selector",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Issue Description",
+              "displayName": "Issue Description",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "QC Done by Engineer Name (To be filled manually)",
+              "displayName": "QC Done by Engineer Name (To be filled manually)",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "isValid",
+              "displayName": "isValid",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "totalIssues",
+              "displayName": "totalIssues",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "failedRules",
+              "displayName": "failedRules",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        432,
+        1056
+      ],
+      "id": "51a3eeee-f339-4cb6-afc4-3e535f8d9a0f",
+      "name": "update qc result mob2-raintree",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "QXavCMd62qyupIc3",
+          "name": "Design sheet"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "submit-website-url": {
+      "main": [
+        [
+          {
+            "node": "Get sitemap",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get sitemap": {
+      "main": [
+        [
+          {
+            "node": "get-homepage-url",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "get-homepage-url": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Get page data Desktop",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get page data Desktop": {
+      "main": [
+        [
+          {
+            "node": "get-wid-min-css-url-d",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "get widget.min css-d": {
+      "main": [
+        [
+          {
+            "node": "perform-qc-d",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "perform-qc-d": {
+      "main": [
+        [
+          {
+            "node": "Split Out-result-d",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "get-wid-min-css-url-d": {
+      "main": [
+        [
+          {
+            "node": "get widget.min css-d",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Out-result-d": {
+      "main": [
+        [
+          {
+            "node": "format-payload-d",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "format-payload-d": {
+      "main": [
+        [
+          {
+            "node": "update qc result desktop-raintree",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "get widget.min css-d2": {
+      "main": [
+        [
+          {
+            "node": "perform-qc-m2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "get-wid-min-css-url-d1": {
+      "main": [
+        [
+          {
+            "node": "get widget.min css-d2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Out-result-d2": {
+      "main": [
+        [
+          {
+            "node": "format-payload-d1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "format-payload-d1": {
+      "main": [
+        [
+          {
+            "node": "update qc result mob2-raintree",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get page data Mobile1": {
+      "main": [
+        [
+          {
+            "node": "get-wid-min-css-url-d1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Get page data Mobile1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "perform-qc-m2": {
+      "main": [
+        [
+          {
+            "node": "Split Out-result-d2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "update qc result desktop-raintree": {
+      "main": [
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "update qc result mob2-raintree": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "bd6871a4a2fc266d0b692ce5c61316479a1bd2c1f9ba6625c50ae6055bd706d5"
+  }
+}

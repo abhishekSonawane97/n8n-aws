@@ -1,0 +1,240 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: n8n on AWS ECS using EC2 (Graviton / ARM) + public subnet + bridge networking + correct IAM/instance-profile
+
+Parameters:
+  AllowedCidr:
+    Description: CIDR allowed to access n8n web UI (and SSH if enabled)
+    Type: String
+    Default: "0.0.0.0/0"
+  InstanceType:
+    Description: EC2 instance type (ARM-compatible for Graviton)
+    Type: String
+    Default: "t4g.micro"
+  DesiredCapacity:
+    Description: Number of EC2 instances to start with in cluster
+    Type: Number
+    Default: 1
+  MaxSize:
+    Description: Maximum number of EC2 instances in auto-scaling group
+    Type: Number
+    Default: 2
+  ContainerImage:
+    Description: Docker image for n8n container
+    Type: String
+    Default: "n8nio/n8n:latest"
+  ContainerPort:
+    Description: n8n Web UI port
+    Type: Number
+    Default: 5678
+  KeyName:
+    Description: "Optional EC2 key pair name (in this region) to enable SSH with your PEM key. Leave empty to disable SSH key access."
+    Type: String
+    Default: ""
+
+Conditions:
+  HasKeyName: !Not [ !Equals [ !Ref KeyName, "" ] ]
+
+Resources:
+  # IAM role for ECS container instances
+  ECSInstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: [ "ec2.amazonaws.com" ]
+            Action: [ "sts:AssumeRole" ]
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role
+
+  ECSInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref ECSInstanceRole
+
+  # Network / VPC
+  MyVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: n8n-VPC
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: n8n-IGW
+
+  VPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref MyVPC
+      InternetGatewayId: !Ref InternetGateway
+
+  PublicSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref MyVPC
+      CidrBlock: 10.0.1.0/24
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: n8n-PublicSubnet
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref MyVPC
+      Tags:
+        - Key: Name
+          Value: n8n-PublicRT
+
+  PublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: VPCGatewayAttachment
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: "0.0.0.0/0"
+      GatewayId: !Ref InternetGateway
+
+  SubnetRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet
+      RouteTableId: !Ref PublicRouteTable
+
+  # Security group
+  N8NSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: "Allow n8n web and SSH access"
+      VpcId: !Ref MyVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: !Ref ContainerPort
+          ToPort: !Ref ContainerPort
+          CidrIp: !Ref AllowedCidr
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: !Ref AllowedCidr
+
+  # ECS cluster
+  ECSCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: n8n-ECS-Cluster
+
+  # EC2 Launch Template (with correct IAM instance profile + ECS bootstrap)
+  EC2LaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateData:
+        IamInstanceProfile:
+          Arn: !GetAtt ECSInstanceProfile.Arn
+        ImageId: !Sub "{{resolve:ssm:/aws/service/ecs/optimized-ami/amazon-linux-2023/arm64/recommended/image_id}}"
+        InstanceType: !Ref InstanceType
+        KeyName: !If [ HasKeyName, !Ref KeyName, !Ref "AWS::NoValue" ]
+        UserData:
+          Fn::Base64: !Sub |
+            #!/bin/bash
+            echo "ECS_CLUSTER=${ECSCluster}" >> /etc/ecs/ecs.config
+        NetworkInterfaces:
+          - DeviceIndex: 0
+            SubnetId: !Ref PublicSubnet
+            AssociatePublicIpAddress: true
+            Groups: [ !Ref N8NSecurityGroup ]
+        BlockDeviceMappings:
+          - DeviceName: /dev/xvda
+            Ebs:
+              VolumeSize: 30
+              VolumeType: gp3
+              DeleteOnTermination: true
+
+  # Auto Scaling Group for EC2 capacity
+  ECSAutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      VPCZoneIdentifier: [ !Ref PublicSubnet ]
+      LaunchTemplate:
+        LaunchTemplateId: !Ref EC2LaunchTemplate
+        Version: !GetAtt EC2LaunchTemplate.LatestVersionNumber
+      MinSize: 0
+      MaxSize: !Ref MaxSize
+      DesiredCapacity: !Ref DesiredCapacity
+      Tags:
+        - Key: Name
+          Value: n8n-ECS-Instance
+          PropagateAtLaunch: true
+
+  # Capacity Provider
+  ECSCapacityProvider:
+    Type: AWS::ECS::CapacityProvider
+    Properties:
+      Name: n8nCapacityProvider
+      AutoScalingGroupProvider:
+        AutoScalingGroupArn: !Ref ECSAutoScalingGroup
+        ManagedScaling:
+          Status: ENABLED
+          TargetCapacity: 100
+        ManagedTerminationProtection: DISABLED
+
+  ECSClusterCapacityProviderAssociation:
+    Type: AWS::ECS::ClusterCapacityProviderAssociations
+    Properties:
+      Cluster: !Ref ECSCluster
+      CapacityProviders: [ !Ref ECSCapacityProvider ]
+      DefaultCapacityProviderStrategy:
+        - CapacityProvider: !Ref ECSCapacityProvider
+          Weight: 1
+
+  # ECS Task Definition
+  N8NTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: n8n-task
+      NetworkMode: bridge
+      RequiresCompatibilities: [ "EC2" ]
+      ContainerDefinitions:
+        - Name: n8n
+          Image: !Ref ContainerImage
+          PortMappings:
+            - ContainerPort: !Ref ContainerPort
+              HostPort: !Ref ContainerPort
+              Protocol: tcp
+          Essential: true
+          MemoryReservation: 512
+          Memory: 1024
+          Environment:
+            - Name: DB_SQLITE_POOL_SIZE
+              Value: "2"
+            - Name: N8N_RUNNERS_ENABLED
+              Value: "true"
+            - Name: N8N_SECURE_COOKIE
+              Value: "false"
+
+  # ECS Service
+  N8NService:
+    Type: AWS::ECS::Service
+    Properties:
+      Cluster: !Ref ECSCluster
+      DesiredCount: 1
+      TaskDefinition: !Ref N8NTaskDefinition
+      LaunchType: EC2
+
+Outputs:
+  ECSClusterName:
+    Description: ECS Cluster name
+    Value: !Ref ECSCluster
+
+  ServiceName:
+    Description: ECS Service name
+    Value: !Ref N8NService
