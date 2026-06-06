@@ -15,7 +15,7 @@ jobs:
     name: Deploy n8n to AWS
     runs-on: ubuntu-latest
     env:
-      AWS_REGION: ap-south-2
+      AWS_REGION: ap-south-1
       # Optional: set repo secret KEY_NAME to an EC2 key pair name to enable SSH with your PEM key.
       KEY_NAME: ${{ secrets.KEY_NAME }}
     steps:
@@ -27,7 +27,7 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ap-south-2
+          aws-region: ap-south-1
 
       - name: Deploy CloudFormation stack
         run: |

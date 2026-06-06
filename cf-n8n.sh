@@ -6,7 +6,7 @@ aws sts get-caller-identity
 # === Config ===
 STACK_NAME="n8n-full-stack"
 TEMPLATE_FILE="CF-n8n-infra.yaml"
-AWS_REGION="ap-south-2"
+AWS_REGION="ap-south-1"
 ALLOWED_CIDR="0.0.0.0/0"
 # Optional EC2 key pair name (must already exist in $AWS_REGION) to enable SSH with your PEM key.
 # Leave empty to deploy without SSH key access. Override with: KEY_NAME=my-key ./cf-n8n.sh deploy
