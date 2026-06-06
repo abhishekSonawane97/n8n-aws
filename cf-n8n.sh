@@ -11,6 +11,11 @@ ALLOWED_CIDR="0.0.0.0/0"
 # Optional EC2 key pair name (must already exist in $AWS_REGION) to enable SSH with your PEM key.
 # Leave empty to deploy without SSH key access. Override with: KEY_NAME=my-key ./cf-n8n.sh deploy
 KEY_NAME="${KEY_NAME:-}"
+# Optional public hostname + Cloudflare Tunnel token to serve n8n over HTTPS at that host.
+# Both must be set together. Example:
+#   N8N_HOSTNAME=n8n.example.com CLOUDFLARED_TOKEN=eyJ... ./cf-n8n.sh deploy
+N8N_HOSTNAME="${N8N_HOSTNAME:-}"
+CLOUDFLARED_TOKEN="${CLOUDFLARED_TOKEN:-}"
 
 function usage() {
   echo "Usage: $0 {deploy|update|destroy|status}"
@@ -29,7 +34,7 @@ case "$cmd" in
       --template-file "$TEMPLATE_FILE" \
       --stack-name "$STACK_NAME" \
       --region "$AWS_REGION" \
-      --parameter-overrides AllowedCidr="$ALLOWED_CIDR" KeyName="$KEY_NAME" \
+      --parameter-overrides AllowedCidr="$ALLOWED_CIDR" KeyName="$KEY_NAME" N8nHostname="$N8N_HOSTNAME" CloudflaredToken="$CLOUDFLARED_TOKEN" \
       --capabilities CAPABILITY_NAMED_IAM
 
     echo "[INFO] Waiting for stack to reach CREATE_COMPLETE / UPDATE_COMPLETE..."

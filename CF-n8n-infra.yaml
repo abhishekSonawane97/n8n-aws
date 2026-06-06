@@ -30,9 +30,20 @@ Parameters:
     Description: "Optional EC2 key pair name (in this region) to enable SSH with your PEM key. Leave empty to disable SSH key access."
     Type: String
     Default: ""
+  N8nHostname:
+    Description: "Optional public hostname for n8n (e.g. n8n.example.com). When set, n8n is configured for HTTPS at this host. Leave empty for raw-IP access."
+    Type: String
+    Default: ""
+  CloudflaredToken:
+    Description: "Optional Cloudflare Tunnel token. When set, a cloudflared sidecar is added that exposes n8n at N8nHostname over HTTPS (no inbound ports needed)."
+    Type: String
+    Default: ""
+    NoEcho: true
 
 Conditions:
   HasKeyName: !Not [ !Equals [ !Ref KeyName, "" ] ]
+  HasHostname: !Not [ !Equals [ !Ref N8nHostname, "" ] ]
+  HasCloudflare: !Not [ !Equals [ !Ref CloudflaredToken, "" ] ]
 
 Resources:
   # IAM role for ECS container instances
@@ -218,8 +229,40 @@ Resources:
               Value: "2"
             - Name: N8N_RUNNERS_ENABLED
               Value: "true"
+            # Secure cookies require HTTPS; enable only when served via a public hostname.
             - Name: N8N_SECURE_COOKIE
-              Value: "false"
+              Value: !If [ HasHostname, "true", "false" ]
+            # When a public hostname is set, tell n8n its external URL so the editor,
+            # webhooks and OAuth callbacks use https://<hostname>/ instead of the raw IP.
+            - !If
+              - HasHostname
+              - { Name: N8N_HOST, Value: !Ref N8nHostname }
+              - !Ref "AWS::NoValue"
+            - !If
+              - HasHostname
+              - { Name: N8N_PROTOCOL, Value: "https" }
+              - !Ref "AWS::NoValue"
+            - !If
+              - HasHostname
+              - { Name: WEBHOOK_URL, Value: !Sub "https://${N8nHostname}/" }
+              - !Ref "AWS::NoValue"
+            - !If
+              - HasHostname
+              - { Name: N8N_EDITOR_BASE_URL, Value: !Sub "https://${N8nHostname}/" }
+              - !Ref "AWS::NoValue"
+        # cloudflared sidecar — added only when a Cloudflare Tunnel token is provided.
+        # Dials out to Cloudflare (no inbound ports) and forwards the tunnel's public
+        # hostname to n8n via the bridge link below. In the Cloudflare dashboard set the
+        # tunnel's public-hostname service to:  http://n8n:5678
+        - !If
+          - HasCloudflare
+          - Name: cloudflared
+            Image: cloudflare/cloudflared:latest
+            Essential: true
+            MemoryReservation: 128
+            Links: [ "n8n" ]
+            Command: [ "tunnel", "--no-autoupdate", "run", "--token", !Ref CloudflaredToken ]
+          - !Ref "AWS::NoValue"
 
   # ECS Service
   N8NService:

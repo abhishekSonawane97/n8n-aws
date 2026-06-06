@@ -18,6 +18,9 @@ jobs:
       AWS_REGION: ap-south-1
       # Optional: set repo secret KEY_NAME to an EC2 key pair name to enable SSH with your PEM key.
       KEY_NAME: ${{ secrets.KEY_NAME }}
+      # Optional: serve n8n over HTTPS at a public hostname via a Cloudflare Tunnel.
+      N8N_HOSTNAME: ${{ secrets.N8N_HOSTNAME }}
+      CLOUDFLARED_TOKEN: ${{ secrets.CLOUDFLARED_TOKEN }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
